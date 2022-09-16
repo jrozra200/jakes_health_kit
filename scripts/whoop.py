@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 # pd.set_option('display.max_columns', None)
 
 # Get UN and PW from file
-whoop_config = pd.read_csv("whoop.config")
+whoop_config = pd.read_csv("../whoop.config")
 
 # API URL for Reference
 api_url = "https://api-7.whoop.com"
@@ -73,7 +73,8 @@ while offset < total_count:
         break
 
     records.extend(response.json()['records'])
-    
+    offset = response.json()['offset']
+    total_count = response.json()['total_count']
 
 cycles = pd.DataFrame()
 sleeps = pd.DataFrame()
@@ -83,23 +84,23 @@ workouts = pd.DataFrame()
 for record in range(len(records)):
     
     # cycles
-    tmp = pd.json_normalize(records[record]["cycle"])
-    if tmp.shape[0] > 0:
+    if len(records[record]["cycle"]) > 0:    
+        tmp = pd.json_normalize(records[record]["cycle"])
         cycles = pd.concat([cycles, tmp], ignore_index = True)
         
     # sleeps
-    tmp = pd.json_normalize(records[record]["sleeps"])
-    if tmp.shape[0] > 0:
+    if len(records[record]["sleeps"]) > 0:
+        tmp = pd.json_normalize(records[record]["sleeps"])
         sleeps = pd.concat([sleeps, tmp], ignore_index = True)
         
     # recovery
-    tmp = pd.json_normalize(records[record]["recovery"])
-    if tmp.shape[0] > 0:
+    if type(records[record]["recovery"]) != "NoneType":
+        tmp = pd.json_normalize(records[record]["recovery"])
         recovery = pd.concat([recovery, tmp], ignore_index = True)
         
     # workouts
-    tmp = pd.json_normalize(records[record]["workouts"])
-    if tmp.shape[0] > 0:
+    if len(records[record]["workouts"]) > 0:
+        tmp = pd.json_normalize(records[record]["workouts"])
         workouts = pd.concat([workouts, tmp], ignore_index = True)
     
 
@@ -111,15 +112,21 @@ workouts = workouts.merge(sports[["id", "name"]],
                           right_on = "id",
                           how = "left")
 
-response = s.get(
-    url = f'{api_url}/users/{user_id}/metrics/heart_rate',
-    params = {
-        "start": "2022-09-06T15:00:00.000Z",
-        "end": "2022-09-14T15:00:00.000Z",
-        "step": "6", # every 6 seconds, 6 or 60 or 600
-    }
-)
-hr = pd.DataFrame.from_dict(response.json()['values'])
-hr['time'] = pd.to_datetime(hr['time'], unit = 'ms', utc = True)
-hr = hr.rename(columns={'data': 'bpm'})
-hr = hr.set_index('time')
+
+cycles.to_csv('../data/cycles.csv', index = False)
+sleeps.to_csv('../data/sleeps.csv', index = False)
+recovery.to_csv('../data/recovery.csv', index = False)
+workouts.to_csv('../data/workouts.csv', index = False)
+
+# response = s.get(
+#     url = f'{api_url}/users/{user_id}/metrics/heart_rate',
+#     params = {
+#         "start": "2022-09-06T15:00:00.000Z",
+#         "end": "2022-09-14T15:00:00.000Z",
+#         "step": "6", # every 6 seconds, 6 or 60 or 600
+#     }
+# )
+# hr = pd.DataFrame.from_dict(response.json()['values'])
+# hr['time'] = pd.to_datetime(hr['time'], unit = 'ms', utc = True)
+# hr = hr.rename(columns={'data': 'bpm'})
+# hr = hr.set_index('time')
