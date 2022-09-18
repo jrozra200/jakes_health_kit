@@ -1,0 +1,156 @@
+---
+title: "Jake's Daily Digest - `r format(Sys.Date(), '%B %d, %Y')`"
+output: 
+  flexdashboard::flex_dashboard:
+    theme:
+      bootswatch: cosmo
+    orientation: columns
+    vertical_layout: fill
+---
+
+
+```{r setup, include = FALSE}
+library(flexdashboard)
+library(bslib)
+library(readr)
+library(scales)
+library(dplyr)
+library(ggplot2)
+library(stringr)
+library(lubridate)
+library(knitr)
+library(kableExtra)
+
+system("python whoop.py")
+system("Rscript --vanilla rules.R")
+
+
+label_size <- 2.75
+```
+
+Column {data-width=650 .tabset}
+-----------------------------------------------------------------------
+
+### Today
+
+This is where I'll put what today's schedule is, what workout, and when. 
+
+```{r}
+
+```
+
+### Week Workout Schedule
+
+This will be the workout schedule for the week.
+
+```{r}
+wo <- read_csv("../data/workout_schedule.csv") %>% 
+    mutate(day_workout = case_when(
+        lift == TRUE ~ "Lift",
+        soccer == TRUE ~ "Soccer",
+        run == TRUE ~ "Run",
+        sauna == TRUE ~ "Recovery + Sauna"),
+        day_workout = ifelse(walk == TRUE, 
+                             paste0(day_workout, " + Walk"),
+                             day_workout)) %>% 
+    select(dotw,
+           date, 
+           day_workout) %>% 
+    rename(Day = dotw,
+           Date = date,
+           Workout = day_workout)
+
+kbl(wo) %>%
+    kable_styling(bootstrap_options = c("striped", 
+                                        "hover", 
+                                        "condensed", 
+                                        "responsive"))
+```
+
+### Day Strain
+
+```{r}
+cycles <- read_csv("../data/cycles.csv")
+
+day_start <- unlist(
+    str_split(cycles$during, ",")
+)[grepl("\\[", unlist(str_split(cycles$during, ",")))]
+day_start <- str_remove_all(day_start, "\\[|\\'")
+day_start <- as_date(day_start, format = "%Y-%m-%dT%H:%M:%OSZ")
+
+cycles <- cycles %>% 
+    mutate(day_start = day_start,
+           dotw = weekdays(day_start))
+day_start <- NULL
+
+cycles_sum <- cycles %>% 
+    group_by(dotw) %>% 
+    slice_head(n = 10) %>% 
+    summarise(avg_strain = mean(day_strain),
+              avg_score = mean(scaled_strain),
+              avg_kj = mean(day_kilojoules))
+
+cycles <- cycles %>%
+    head(10) %>% 
+    left_join(cycles_sum, by = "dotw") %>% 
+    select(day_start, 
+           day_strain,
+           scaled_strain,
+           day_kilojoules,
+           avg_strain,
+           avg_score,
+           avg_kj,
+           dotw) %>% 
+    mutate(avg_strain = avg_strain * 1000,
+           day_strain = day_strain * 1000)
+
+ggplot(cycles, aes(x = day_start)) +
+            geom_bar(aes(y = day_strain), 
+                     stat = "identity",
+                     fill = "#00A3E1") + 
+            geom_errorbar(aes(ymin = avg_strain, ymax = avg_strain)) + 
+            geom_text(aes(label = dotw, y = 1),
+                      size = label_size) + 
+            geom_text(aes(label = percent((day_strain - avg_strain) / avg_strain, 
+                                          accuracy = 0.01), 
+                          y = day_strain - 0.25),
+                      size = label_size) +
+            geom_text(aes(label = round(avg_strain, 2), y = avg_strain + 0.25),
+                      size = label_size) + 
+            geom_text(aes(label = round(day_strain, 2), y = day_strain + 0.25),
+                      size = label_size) + 
+            theme(panel.background = element_blank(),
+                  axis.title = element_blank(),
+                  axis.ticks = element_blank(),
+                  panel.grid.major.y = element_line(color = "light gray"),
+                  panel.grid.major.x = element_blank())
+
+```
+
+### Recovery
+
+```{r}
+
+```
+
+### Sleep
+
+```{r}
+
+```
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### Chart C
+
+```{r}
+
+```
+
+### Chart D
+
+```{r}
+
+```
+

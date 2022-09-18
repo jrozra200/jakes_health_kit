@@ -94,7 +94,7 @@ for record in range(len(records)):
         sleeps = pd.concat([sleeps, tmp], ignore_index = True)
         
     # recovery
-    if type(records[record]["recovery"]) != "NoneType":
+    if len(records[record]["sleeps"]) > 0:
         tmp = pd.json_normalize(records[record]["recovery"])
         recovery = pd.concat([recovery, tmp], ignore_index = True)
         
