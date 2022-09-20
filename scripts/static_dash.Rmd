@@ -20,18 +20,20 @@ library(stringr)
 library(lubridate)
 library(knitr)
 library(kableExtra)
+library(gridExtra)
 
 system("python whoop.py")
 system("Rscript --vanilla rules.R")
 system("python get_events.py")
 
 label_size <- 2.75
+lit_label_size <- 1.75
 
 # Today's Events
 events <- read_csv("../data/calendar_events.csv") %>% 
-    mutate(length = end.dateTime - start.dateTime,
-           start.dateTime = format(start.dateTime - hours(4), "%I:%M:%S %p"),
-           end.dateTime = format(end.dateTime - hours(4), "%I:%M:%S %p")) %>% 
+    mutate(length = difftime(end.dateTime, start.dateTime, units = "mins"),
+           start.dateTime = start.dateTime - hours(4),
+           end.dateTime = end.dateTime - hours(4)) %>% 
     rename(start = start.dateTime,
            end = end.dateTime,
            event = summary) %>% 
@@ -40,6 +42,91 @@ events <- read_csv("../data/calendar_events.csv") %>%
            end,
            length,
            calendar)
+
+if (!weekdays(Sys.Date()) %in% c("Saturday", "Sunday")) {
+    start.dateTime = strptime(paste0(Sys.Date(), ":07:30:00"), 
+                              format = "%Y-%m-%d:%H:%M:%S", 
+                              tz = "UTC")
+    end.dateTime = strptime(paste0(Sys.Date(), ":08:30:00"), 
+                            format = "%Y-%m-%d:%H:%M:%S",
+                            tz = "UTC")
+    day_start <- tibble(
+        event = "Drop Off Kids",
+        start = start.dateTime,
+        end = end.dateTime,
+        length = difftime(end.dateTime, start.dateTime, units = "mins"),
+        calendar = "rozran00@gmail.com"
+    )
+    
+    events <- bind_rows(day_start, events)
+} 
+
+if (!weekdays(Sys.Date()) %in% c("Saturday", "Sunday")) {
+    start.dateTime = strptime(paste0(Sys.Date(), ":16:00:00"), 
+                              format = "%Y-%m-%d:%H:%M:%S", 
+                              tz = "UTC")
+    end.dateTime = strptime(paste0(Sys.Date(), ":16:00:00"), 
+                            format = "%Y-%m-%d:%H:%M:%S",
+                            tz = "UTC")
+    day_end <- tibble(
+        event = "End of the Day",
+        start = start.dateTime,
+        end = end.dateTime,
+        length = difftime(end.dateTime, start.dateTime, units = "mins"),
+        calendar = "rozran00@gmail.com"
+    )
+    
+    events <- bind_rows(events, day_end)
+} 
+
+max_events <- dim(events)[1]
+event <- 2
+
+while (event <= max_events) {
+    last_event <- event - 1
+    
+    end_time <- events$start[event]
+    start_time <- events$end[last_event]
+    
+    time_diff <- difftime(end_time, 
+                          start_time, 
+                          units = "mins")
+    
+    if (time_diff > 0 & events$event[last_event] != events$event[event]) {
+        max_events <- max_events + 1
+        
+        free_time <- tibble(
+            event = "Free Time",
+            start = start_time,
+            end = end_time,
+            length = time_diff,
+            calendar = "rozran00@gmail.com"
+        )
+        
+        events <- bind_rows(
+            events[1:last_event, ],
+            free_time,
+            events[event:max_events, ]
+        )
+    }
+    
+    event <- event + 1
+}
+
+events <- events %>% 
+    filter(!is.na(event)) %>% 
+    mutate(start = format(start, "%I:%M:%S %p"),
+           end = format(end, "%I:%M:%S %p"))
+
+free_time <- events %>% 
+    filter(event == "Free Time")
+
+wo_window_num <- dim(free_time[free_time$length >= 60, ])[1]
+wo_windows <- free_time %>% 
+    filter(length >= 60) %>% 
+    mutate(wo_windows = paste0(start, "-", end)) %>% 
+    pull(wo_windows) %>% 
+    paste0(collapse = "; ")
 
 ## This Week's Workout Schedule
 wo <- read_csv("../data/workout_schedule.csv") %>% 
@@ -104,6 +191,24 @@ cycles <- cycles %>%
            dotw) %>% 
     mutate(avg_strain = avg_strain * 1000,
            day_strain = day_strain * 1000)
+
+todays_strain_exp <- cycles %>% 
+    head(1) %>% 
+    pull(avg_strain) %>% 
+    round(2)
+
+# Recovery
+recovery <- read_csv("../data/recovery.csv") %>% 
+    mutate(date = as_date(date),
+           dotw = weekdays(date, abbreviate = TRUE),
+           hrv_rmssd = hrv_rmssd * 1000, 
+           skin_temp_f = skin_temp_celsius * 9 / 5 + 32,
+           spo2 = spo2 / 100)
+
+mean_rhr <- mean(recovery$resting_heart_rate[2:31])
+mean_hrv <- mean(recovery$hrv_rmssd[2:31])
+mean_st <- mean(recovery$skin_temp_f[2:31])
+mean_spo2 <- mean(recovery$spo2[2:31])
 ```
 
 Column {data-width=650 .tabset}
@@ -111,7 +216,11 @@ Column {data-width=650 .tabset}
 
 ### Today
 
-#### Today's workout: `r todays_wo`.
+#### Today's Workout: `r todays_wo`.
+#### Today's Expected Strain: `r todays_strain_exp`.
+
+You have `r wo_window_num` window(s) long enough to work out today. Try to get 
+your time in during these windows: `r wo_windows`.
 
 #### Today's calendar of events: 
 ```{r}
@@ -138,32 +247,156 @@ kbl(wo) %>%
 
 ```{r, fig.retina = 6}
 ggplot(cycles, aes(x = day_start)) +
-            geom_bar(aes(y = day_strain), 
-                     stat = "identity",
-                     fill = "#00A3E1") + 
-            geom_errorbar(aes(ymin = avg_strain, ymax = avg_strain)) + 
-            geom_text(aes(label = dotw, y = 1),
-                      size = label_size) + 
-            geom_text(aes(label = percent((day_strain - avg_strain) / avg_strain, 
-                                          accuracy = 0.01), 
-                          y = day_strain - 0.25),
-                      size = label_size) +
-            geom_text(aes(label = round(avg_strain, 2), y = avg_strain + 0.25),
-                      size = label_size) + 
-            geom_text(aes(label = round(day_strain, 2), y = day_strain + 0.25),
-                      size = label_size) + 
-            theme(panel.background = element_blank(),
-                  axis.title = element_blank(),
-                  axis.ticks = element_blank(),
-                  panel.grid.major.y = element_line(color = "light gray"),
-                  panel.grid.major.x = element_blank())
+    geom_bar(aes(y = day_strain), 
+             stat = "identity",
+             fill = "#00A3E1") + 
+    geom_errorbar(aes(ymin = avg_strain, ymax = avg_strain)) + 
+    geom_text(aes(label = dotw, y = 1),
+              size = label_size) + 
+    geom_text(aes(label = percent((day_strain - avg_strain) / avg_strain, 
+                                  accuracy = 0.01), 
+                  y = day_strain - 0.25),
+              size = label_size) +
+    geom_text(aes(label = round(avg_strain, 2), y = avg_strain + 0.25),
+              size = label_size) + 
+    geom_text(aes(label = round(day_strain, 2), y = day_strain + 0.25),
+              size = label_size) + 
+    theme(panel.background = element_blank(),
+          axis.title = element_blank(),
+          axis.ticks = element_blank(),
+          panel.grid.major.y = element_line(color = "light gray"),
+          panel.grid.major.x = element_blank())
 
 ```
 
 ### Recovery
 
-```{r}
+```{r, fig.retina = 6}
+# resting_heart_rate
+range_lower <- min(recovery$resting_heart_rate[1:10]) - 
+    ((max(recovery$resting_heart_rate[1:10]) - 
+          min(recovery$resting_heart_rate[1:10])) / 6)
+range_upper <- max(recovery$resting_heart_rate[1:10]) + 
+    ((max(recovery$resting_heart_rate[1:10]) - 
+          min(recovery$resting_heart_rate[1:10])) / 6)
 
+rhr <- ggplot(recovery[1:10, ], aes(x = date, y = resting_heart_rate)) + 
+    geom_line(color = "#00A3E1") + 
+    geom_hline(yintercept = mean_rhr) + 
+    geom_text(aes(label = dotw, y = min(resting_heart_rate) - 2),
+              size = lit_label_size) + 
+    geom_text(label = paste0("30 day avg. rhr: ", mean_rhr), 
+              y = mean_rhr + 0.75,
+              x = min(recovery$date[1:10]) - days(1),
+              hjust = 0,
+              size = lit_label_size) +
+    ggtitle("Resting Heart Rate") + 
+    scale_y_continuous(limits = c(range_lower, range_upper)) + 
+    scale_x_date(limits = c(min(recovery$date[1:10]) - days(1), 
+                            max(recovery$date[1:10]) + days(1))) + 
+    geom_text(aes(label = resting_heart_rate, y = resting_heart_rate + 0.75),
+              size = lit_label_size) + 
+    theme(panel.background = element_blank(),
+          axis.title = element_blank(),
+          axis.ticks = element_blank(),
+          panel.grid.major.y = element_line(color = "light gray"),
+          panel.grid.major.x = element_blank())
+
+# hrv_rmssd
+range_lower <- min(recovery$hrv_rmssd[1:10]) - 
+    ((max(recovery$hrv_rmssd[1:10]) - 
+          min(recovery$hrv_rmssd[1:10])) / 6)
+range_upper <- max(recovery$hrv_rmssd[1:10]) + 
+    ((max(recovery$hrv_rmssd[1:10]) - 
+          min(recovery$hrv_rmssd[1:10])) / 6)
+
+hrv <- ggplot(recovery[1:10, ], aes(x = date, y = hrv_rmssd)) + 
+    geom_line(color = "#00A3E1") + 
+    geom_hline(yintercept = mean_hrv) + 
+    geom_text(aes(label = dotw, y = min(hrv_rmssd) - 6),
+              size = lit_label_size) + 
+    geom_text(label = paste0("30 day avg. hrv: ", round(mean_hrv, 2)), 
+              y = mean_hrv - 3,
+              x = min(recovery$date[1:10]) - days(1),
+              hjust = 0,
+              size = lit_label_size) +
+    ggtitle("Heart Rate Variability") + 
+    scale_y_continuous(limits = c(range_lower, range_upper)) + 
+    scale_x_date(limits = c(min(recovery$date[1:10]) - days(1), 
+                            max(recovery$date[1:10]) + days(1))) + 
+    geom_text(aes(label = round(hrv_rmssd, 2), y = hrv_rmssd + 2),
+              size = lit_label_size) + 
+    theme(panel.background = element_blank(),
+          axis.title = element_blank(),
+          axis.ticks = element_blank(),
+          panel.grid.major.y = element_line(color = "light gray"),
+          panel.grid.major.x = element_blank())
+
+# skin_temp_celsius
+range_lower <- min(recovery$skin_temp_f[1:10]) - 
+    ((max(recovery$skin_temp_f[1:10]) - 
+          min(recovery$skin_temp_f[1:10])) / 6)
+range_upper <- max(recovery$skin_temp_f[1:10]) + 
+    ((max(recovery$skin_temp_f[1:10]) - 
+          min(recovery$skin_temp_f[1:10])) / 6)
+
+temp <- ggplot(recovery[1:10, ], aes(x = date, y = skin_temp_f)) + 
+    geom_line(color = "#00A3E1") + 
+    geom_hline(yintercept = mean_st) + 
+    geom_text(aes(label = dotw, y = min(skin_temp_f) - 0.2),
+              size = lit_label_size) +
+    scale_y_continuous(limits = c(range_lower, range_upper)) + 
+    geom_text(label = paste0("30 day avg. skin temp: ", round(mean_st, 2)), 
+              y = mean_st + 0.15,
+              x = min(recovery$date[1:10]) - days(1),
+              hjust = 0,
+              size = lit_label_size) +
+    ggtitle("Skin Temp (F)") + 
+    scale_x_date(limits = c(min(recovery$date[1:10]) - days(1), 
+                            max(recovery$date[1:10]) + days(1))) + 
+    geom_text(aes(label = round(skin_temp_f, 2), 
+                  y = skin_temp_f + 0.075),
+              size = lit_label_size) + 
+    theme(panel.background = element_blank(),
+          axis.title = element_blank(),
+          axis.ticks = element_blank(),
+          panel.grid.major.y = element_line(color = "light gray"),
+          panel.grid.major.x = element_blank())
+
+# spo2
+range_lower <- min(recovery$spo2[1:10]) - 
+    ((max(recovery$spo2[1:10]) - 
+          min(recovery$spo2[1:10])) / 6)
+range_upper <- max(recovery$spo2[1:10]) + 
+    ((max(recovery$spo2[1:10]) - 
+          min(recovery$spo2[1:10])) / 6)
+
+spo2 <- ggplot(recovery[1:10, ], aes(x = date, y = spo2)) + 
+    geom_line(color = "#00A3E1") + 
+    geom_hline(yintercept = mean_spo2) + 
+    geom_text(aes(label = dotw, y = min(spo2) - 0.003),
+              size = lit_label_size) +
+    scale_y_continuous(limits = c(range_lower, range_upper),
+                       labels = percent_format()) + 
+    geom_text(label = paste0("30 day avg. spo2: ", percent(mean_spo2, 
+                                                           accuracy = 0.01)), 
+              y = mean_spo2 + 0.001,
+              x = min(recovery$date[1:10]) - days(1),
+              hjust = 0,
+              size = lit_label_size) +
+    ggtitle("SPO2") + 
+    scale_x_date(limits = c(min(recovery$date[1:10]) - days(1), 
+                            max(recovery$date[1:10]) + days(1))) + 
+    geom_text(aes(label = percent(spo2, accuracy = 0.01), 
+                  y = spo2 + 0.0015),
+              size = lit_label_size) + 
+    theme(panel.background = element_blank(),
+          axis.title = element_blank(),
+          axis.ticks = element_blank(),
+          panel.grid.major.y = element_line(color = "light gray"),
+          panel.grid.major.x = element_blank())
+
+grid.arrange(rhr, hrv, temp, spo2, nrow = 2)
 ```
 
 ### Sleep
