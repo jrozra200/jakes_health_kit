@@ -1,3 +1,42 @@
+# Today
+
+- Today tab outlining the schedule
+- Workout tab outlining the week's workouts
+    - to add: completed workouts and updates if things change
+- To add: What else do I want to see on the today tab?
+
+# Whoop Data
+
+- Daily Output tab
+    - Strain
+    - Calories
+    - Kilojoules
+- Recovery tab
+    - rhr
+    - hrv
+    - skin temp
+    - spo2
+- Sleep tab
+    - Time in bed
+    - cycles
+    - need to look at other things
+- Workouts tab
+    - Last workouts with comparison to averages
+
+# Alerts tab
+
+- Highlight things that are anomalous
+
+# Other ideas
+
+- headlines?
+- tweets
+- linkedin
+- book progress
+- outstanding amazon purchases
+- reminders
+
+
 # Requirements
 
 - I want to prescribe what I should eat and do each day, based on some meta 
