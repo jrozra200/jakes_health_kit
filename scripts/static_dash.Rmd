@@ -23,27 +23,25 @@ library(kableExtra)
 
 system("python whoop.py")
 system("Rscript --vanilla rules.R")
-
+system("python get_events.py")
 
 label_size <- 2.75
-```
 
-Column {data-width=650 .tabset}
------------------------------------------------------------------------
+# Today's Events
+events <- read_csv("../data/calendar_events.csv") %>% 
+    mutate(length = end.dateTime - start.dateTime,
+           start.dateTime = format(start.dateTime - hours(4), "%I:%M:%S %p"),
+           end.dateTime = format(end.dateTime - hours(4), "%I:%M:%S %p")) %>% 
+    rename(start = start.dateTime,
+           end = end.dateTime,
+           event = summary) %>% 
+    select(event, 
+           start,
+           end,
+           length,
+           calendar)
 
-### Today
-
-This is where I'll put what today's schedule is, what workout, and when. 
-
-```{r}
-
-```
-
-### Week Workout Schedule
-
-This will be the workout schedule for the week.
-
-```{r}
+## This Week's Workout Schedule
 wo <- read_csv("../data/workout_schedule.csv") %>% 
     mutate(day_workout = case_when(
         lift == TRUE ~ "Lift",
@@ -60,16 +58,18 @@ wo <- read_csv("../data/workout_schedule.csv") %>%
            Date = date,
            Workout = day_workout)
 
-kbl(wo) %>%
-    kable_styling(bootstrap_options = c("striped", 
-                                        "hover", 
-                                        "condensed", 
-                                        "responsive"))
-```
+## Today's workout 
+todays_wo <- wo %>% 
+    filter(Date == Sys.Date()) %>% 
+    pull(Workout)
 
-### Day Strain
+## Workout Availability
 
-```{r}
+if (grepl("Soccer", todays_wo)) {
+    soccer
+}
+
+# Cycles Data
 cycles <- read_csv("../data/cycles.csv")
 
 day_start <- unlist(
@@ -84,6 +84,7 @@ cycles <- cycles %>%
 day_start <- NULL
 
 cycles_sum <- cycles %>% 
+    filter(day_start < Sys.Date()) %>% 
     group_by(dotw) %>% 
     slice_head(n = 10) %>% 
     summarise(avg_strain = mean(day_strain),
@@ -103,7 +104,39 @@ cycles <- cycles %>%
            dotw) %>% 
     mutate(avg_strain = avg_strain * 1000,
            day_strain = day_strain * 1000)
+```
 
+Column {data-width=650 .tabset}
+-----------------------------------------------------------------------
+
+### Today
+
+#### Today's workout: `r todays_wo`.
+
+#### Today's calendar of events: 
+```{r}
+kbl(events) %>%
+    kable_styling(bootstrap_options = c("striped", 
+                                        "hover", 
+                                        "condensed", 
+                                        "responsive"))
+```
+
+### Week Workout Schedule
+
+This will be the workout schedule for the week.
+
+```{r}
+kbl(wo) %>%
+    kable_styling(bootstrap_options = c("striped", 
+                                        "hover", 
+                                        "condensed", 
+                                        "responsive"))
+```
+
+### Day Strain
+
+```{r, fig.retina = 6}
 ggplot(cycles, aes(x = day_start)) +
             geom_bar(aes(y = day_strain), 
                      stat = "identity",

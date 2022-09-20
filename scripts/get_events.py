@@ -1,75 +1,46 @@
-from __future__ import print_function
-
-import datetime
-import os.path
 from datetime import datetime
 from dateutil import tz
-
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
+import pandas as pd
 from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
+from google.oauth2 import service_account
 
 # If modifying these scopes, delete the file token.json.
-SCOPES = ['https://www.googleapis.com/auth/calendar.readonly', 
-          'https://www.googleapis.com/auth/calendar',
-          'https://www.googleapis.com/auth/calendar.events.readonly',
-          'https://www.googleapis.com/auth/calendar.events']
-          
-def main():
-    """Shows basic usage of the Google Calendar API.
-    Prints the start and name of the next 10 events on the user's calendar.
-    """
-    creds = None
-    # The file token.json stores the user's access and refresh tokens, and is
-    # created automatically when the authorization flow completes for the first
-    # time.
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-    # If there are no (valid) credentials available, let the user log in.
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                '../credentials.json', SCOPES)
-            creds = flow.run_local_server(port=0)
-        # Save the credentials for the next run
-        with open('token.json', 'w') as token:
-            token.write(creds.to_json())
+SCOPES = ['https://www.googleapis.com/auth/calendar.readonly',
+          'https://www.googleapis.com/auth/calendar.events.readonly']
+SERVICE_ACCOUNT_FILE = '../extended-line-362920-d1d2ea37dd97.json'
+credentials = service_account.Credentials.from_service_account_file(
+    SERVICE_ACCOUNT_FILE, 
+    scopes = SCOPES)
 
-    try:
-        service = build('calendar', 'v3', credentials=creds)
+delegated_credentials = credentials.with_subject('jake@rleanalytics.com')
 
-        # Call the Calendar API
-        today = datetime.utcnow().date()
-        start = datetime(today.year, today.month, today.day + 1, 
-                         tzinfo = tz.gettz('America/New_York')).isoformat()
-        end = datetime(today.year, today.month, today.day + 2, 
-                       tzinfo = tz.gettz('America/New_York')).isoformat()
-        
-        print('Getting the upcoming 10 events')
-        events_result = service.events().list(calendarId = 'rozran00@gmail.com', 
-                                              timeMin = start,
-                                              timeMax = end,
-                                              maxResults = 25, 
-                                              singleEvents = True,
-                                              orderBy = 'startTime').execute()
-        events = events_result.get('items', [])
+service = build('calendar', 'v3', credentials = delegated_credentials)
 
-        if not events:
-            print('No upcoming events found.')
-            return
+# Get the list of calendars available
+cal_list = service.calendarList().list().execute()
+calendars = pd.json_normalize(cal_list.get('items', []))['id']
 
-        # Prints the start and name of the next 10 events
-        for event in events:
-            start = event['start'].get('dateTime', event['start'].get('date'))
-            print(start, event['summary'])
+# Get today's events
+today = datetime.utcnow().date()
+start = datetime(today.year, today.month, today.day, 
+                 tzinfo = tz.gettz('America/New_York')).isoformat()
+end = datetime(today.year, today.month, today.day + 1, 
+               tzinfo = tz.gettz('America/New_York')).isoformat()
 
-    except HttpError as error:
-        print('An error occurred: %s' % error)
+all_events = pd.DataFrame()
 
+for cal in calendars:
+    events_result = service.events().list(calendarId = cal, 
+                                          timeMin = start,
+                                          timeMax = end,
+                                          maxResults = 25, 
+                                          singleEvents = True,
+                                          orderBy = 'startTime').execute()
+    events = pd.json_normalize(events_result.get('items', []))
+    
+    if(len(events) > 0):
+        events = events[['summary', 'start.dateTime', 'end.dateTime']]
+        events['calendar'] = cal
+        all_events = pd.concat([all_events, events], ignore_index = True)
 
-if __name__ == '__main__':
-    main()
+all_events.to_csv('../data/calendar_events.csv', index = False)
