@@ -1,3 +1,10 @@
+# More thoughts
+
+I want to see my fitness. More specifically, I want my output time to remain steady 
+and high and I want my weight to go down to a level and stabilize and I want 
+my strength to go up and my cardio to go up. I need to show that simply and 
+detailed. 
+
 # Today
 
 - Today tab outlining the schedule

@@ -21,6 +21,7 @@ library(lubridate)
 library(knitr)
 library(kableExtra)
 library(gridExtra)
+library(tidyr)
 
 system("python whoop.py")
 system("Rscript --vanilla rules.R")
@@ -44,6 +45,24 @@ events <- read_csv("../data/calendar_events.csv") %>%
            calendar)
 
 if (!weekdays(Sys.Date()) %in% c("Saturday", "Sunday")) {
+    start.dateTime = strptime(paste0(Sys.Date(), ":06:15:00"), 
+                              format = "%Y-%m-%d:%H:%M:%S", 
+                              tz = "UTC")
+    end.dateTime = strptime(paste0(Sys.Date(), ":07:30:00"), 
+                            format = "%Y-%m-%d:%H:%M:%S",
+                            tz = "UTC")
+    day_start <- tibble(
+        event = "With the Family",
+        start = start.dateTime,
+        end = end.dateTime,
+        length = difftime(end.dateTime, start.dateTime, units = "mins"),
+        calendar = "rozran00@gmail.com"
+    )
+    
+    events <- bind_rows(day_start, events)
+    
+    #######################################################
+    
     start.dateTime = strptime(paste0(Sys.Date(), ":07:30:00"), 
                               format = "%Y-%m-%d:%H:%M:%S", 
                               tz = "UTC")
@@ -59,25 +78,32 @@ if (!weekdays(Sys.Date()) %in% c("Saturday", "Sunday")) {
     )
     
     events <- bind_rows(day_start, events)
-} 
-
-if (!weekdays(Sys.Date()) %in% c("Saturday", "Sunday")) {
+    
+    #######################################################
+    
     start.dateTime = strptime(paste0(Sys.Date(), ":16:00:00"), 
                               format = "%Y-%m-%d:%H:%M:%S", 
                               tz = "UTC")
-    end.dateTime = strptime(paste0(Sys.Date(), ":16:00:00"), 
+    end.dateTime = strptime(paste0(Sys.Date(), ":19:00:00"), 
                             format = "%Y-%m-%d:%H:%M:%S",
                             tz = "UTC")
     day_end <- tibble(
-        event = "End of the Day",
+        event = "With the Family",
         start = start.dateTime,
         end = end.dateTime,
         length = difftime(end.dateTime, start.dateTime, units = "mins"),
         calendar = "rozran00@gmail.com"
     )
     
-    events <- bind_rows(events, day_end)
+    events <- bind_rows(events, day_end) %>% 
+        arrange(start, end)
 } 
+
+events <- events %>% 
+    mutate(calendar = ifelse(event == "STAT 4380", 
+                             "jacob.rozran@villanova.edu",
+                             calendar)) %>% 
+    unique()
 
 max_events <- dim(events)[1]
 event <- 2
@@ -131,7 +157,7 @@ wo_windows <- free_time %>%
 ## This Week's Workout Schedule
 wo <- read_csv("../data/workout_schedule.csv") %>% 
     mutate(day_workout = case_when(
-        lift == TRUE ~ "Lift",
+        lift == TRUE ~ "Weightlifting",
         soccer == TRUE ~ "Soccer",
         run == TRUE ~ "Run",
         sauna == TRUE ~ "Recovery + Sauna"),
@@ -153,8 +179,31 @@ todays_wo <- wo %>%
 ## Workout Availability
 
 if (grepl("Soccer", todays_wo)) {
-    soccer
+    soccer <- read_csv("../data/futbol_schedule.csv") %>% 
+        filter(as_date(datetime) == Sys.Date())
+    wo_message <- paste0("You have soccer tonight with ", soccer$team[1], " at ",
+                         format(soccer$datetime[1], "%I:%M %p"), " on field ",
+                         soccer$field[1], ".")
+    
+    if (grepl("\\+ Walk", todays_wo)) {
+        wo_message <- paste0(wo_message, " You also have ", wo_window_num, 
+                             " window(s) long enough to get your walk in today.",
+                             " Try to get your walk in during these windows: ",
+                             wo_windows)
+    }
+} else {
+    wo_message <- paste0("You have ", wo_window_num, " window(s) long enough ", 
+                         "to get your workout in today. Try to get your time ", 
+                         "in during these windows: ", wo_windows)
+    
+    if (grepl("\\+ Walk", todays_wo)) {
+        wo_message <- paste0(wo_message, " Don't forget... you also have to ", 
+                             "get your walk with Poppy in today.")
+    }
 }
+
+# You have `r wo_window_num` window(s) long enough to work out today. Try to get 
+# your time in during these windows: `r wo_windows`.
 
 # Cycles Data
 cycles <- read_csv("../data/cycles.csv")
@@ -209,6 +258,25 @@ mean_rhr <- mean(recovery$resting_heart_rate[2:31])
 mean_hrv <- mean(recovery$hrv_rmssd[2:31])
 mean_st <- mean(recovery$skin_temp_f[2:31])
 mean_spo2 <- mean(recovery$spo2[2:31])
+
+# Workouts 
+
+workouts <- read_csv('../data/workouts.csv')
+
+avg_workout <- workouts %>% 
+    filter(!is.na(name)) %>% 
+    mutate(name = case_when(
+        (name == "Powerlifting" | 
+             name == "Functional Fitness") ~ "Weightlifting",
+        1 == 1 ~ name
+    )) %>% 
+    group_by(name) %>% 
+    slice_head(n = 10) %>% 
+    summarise(count = length(name),
+              avg_intensity_score = mean(raw_intensity_score * 1000))
+
+todays_workouts <- workouts %>% 
+    filter(as_date(created_at) == Sys.Date())
 ```
 
 Today
@@ -220,12 +288,85 @@ Column {data-width=650 .tabset}
 ### Today
 
 #### Today's Workout: `r todays_wo`.
-#### Today's Expected Strain: `r todays_strain_exp`.
 
-You have `r wo_window_num` window(s) long enough to work out today. Try to get 
-your time in during these windows: `r wo_windows`.
+`r wo_message`
 
-#### Today's calendar of events: 
+```{r, out.width = "80%", fig.height = 1, fig.retina = 6, fig.align = 'center'}
+# If today's workout(s) has not happened yet, add it into the graph to show the expected
+
+# If there are two events in today's plan
+if (grepl("\\+", todays_wo)) {
+    todays_wo <- unlist(str_split(todays_wo, " + "))
+}
+
+expected_strain <- 0
+
+# Have you done those workouts yet? 
+for (two in todays_wo) {
+    if (two %in% todays_workouts$name) {
+        next
+    } 
+    
+    expected_strain <- expected_strain + avg_workout$avg_intensity_score[avg_workout$name == two]
+}
+
+plot_data <- cycles %>% 
+    head(1)  %>% 
+    select(day_start,
+           day_strain, 
+           avg_strain, 
+           dotw)%>% 
+    mutate(additional_strain = expected_strain + day_strain)
+
+
+ggplot(plot_data, aes(x = day_start)) +
+    geom_bar(aes(y = additional_strain), 
+             stat = "identity", 
+             fill = "#00A3E1", 
+             alpha = 0.25, width = 0.8) + 
+    geom_bar(aes(y = day_strain), stat = "identity", fill = "#00A3E1") + 
+    geom_errorbar(aes(ymin = avg_strain, ymax = avg_strain)) +
+    geom_text(aes(label = paste0("Currently ", 
+                                 percent(1 - ((avg_strain - day_strain) / 
+                                                  avg_strain), 
+                                         accuracy = 0.01), 
+                                 " of the average strain."),
+                  y = ifelse(avg_strain > additional_strain, 
+                             avg_strain / 2, 
+                             additional_strain / 2)),
+              size = 1.5) +
+    geom_text(aes(label = paste0("Current strain: ", 
+                                 round(day_strain, 2)), 
+                  y = day_strain - 0.05),
+              hjust = 1, 
+              nudge_x = 0.25,
+              size = 1.5) +
+    geom_text(aes(label = paste0("Average strain for ", dotw, "s: ", 
+                                 round(avg_strain, 2)),
+                  y = avg_strain - 0.05),
+              hjust = 1,
+              nudge_x = -0.25,
+              size = 1.5) +
+    geom_text(aes(label = paste0("Expected additional strain: ", 
+                                 round(additional_strain - day_strain, 2)), 
+                  y = additional_strain - 0.05),
+              hjust = 1, 
+              nudge_x = 0.35,
+              size = 1.5) +
+    coord_flip() +
+    theme(panel.background = element_blank(),
+          axis.title = element_blank(),
+          axis.ticks = element_blank(),
+          axis.text = element_text(size = 5),
+          panel.grid.major.x = element_line(color = "light gray"),
+          panel.grid.major.y = element_blank(), 
+          plot.background = element_rect(color = "black", fill = NA))
+```
+
+### Today's Calendar
+
+Here are the events for today. 
+
 ```{r}
 kbl(events) %>%
     kable_styling(bootstrap_options = c("striped", 
@@ -234,7 +375,7 @@ kbl(events) %>%
                                         "responsive"))
 ```
 
-### Week Workout Schedule
+### Workout Schedule
 
 This will be the workout schedule for the week.
 
