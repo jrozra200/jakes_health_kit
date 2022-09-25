@@ -22,147 +22,156 @@ library(knitr)
 library(kableExtra)
 library(gridExtra)
 library(tidyr)
+library(zoo)
 
 system("python whoop.py")
 system("Rscript --vanilla rules.R")
 system("python get_events.py")
 
 label_size <- 2.75
+title_size <- 8
 lit_label_size <- 1.75
 
 # Today's Events
-events <- read_csv("../data/calendar_events.csv") %>% 
-    mutate(length = difftime(end.dateTime, start.dateTime, units = "mins"),
-           start.dateTime = start.dateTime - hours(4),
-           end.dateTime = end.dateTime - hours(4)) %>% 
-    rename(start = start.dateTime,
-           end = end.dateTime,
-           event = summary) %>% 
-    select(event, 
-           start,
-           end,
-           length,
-           calendar)
+events <- read_csv("../data/calendar_events.csv") 
 
-if (!weekdays(Sys.Date()) %in% c("Saturday", "Sunday")) {
-    start.dateTime = strptime(paste0(Sys.Date(), ":06:15:00"), 
-                              format = "%Y-%m-%d:%H:%M:%S", 
-                              tz = "UTC")
-    end.dateTime = strptime(paste0(Sys.Date(), ":07:30:00"), 
-                            format = "%Y-%m-%d:%H:%M:%S",
-                            tz = "UTC")
-    day_start <- tibble(
-        event = "With the Family",
-        start = start.dateTime,
-        end = end.dateTime,
-        length = difftime(end.dateTime, start.dateTime, units = "mins"),
-        calendar = "rozran00@gmail.com"
-    )
+if (dim(events)[1] > 0) {
+    events <- events %>% 
+        mutate(length = difftime(end.dateTime, start.dateTime, units = "mins"),
+               start.dateTime = start.dateTime - hours(4),
+               end.dateTime = end.dateTime - hours(4)) %>% 
+        rename(start = start.dateTime,
+               end = end.dateTime,
+               event = summary) %>% 
+        select(event, 
+               start,
+               end,
+               length,
+               calendar)
     
-    events <- bind_rows(day_start, events)
-    
-    #######################################################
-    
-    start.dateTime = strptime(paste0(Sys.Date(), ":07:30:00"), 
-                              format = "%Y-%m-%d:%H:%M:%S", 
-                              tz = "UTC")
-    end.dateTime = strptime(paste0(Sys.Date(), ":08:30:00"), 
-                            format = "%Y-%m-%d:%H:%M:%S",
-                            tz = "UTC")
-    day_start <- tibble(
-        event = "Drop Off Kids",
-        start = start.dateTime,
-        end = end.dateTime,
-        length = difftime(end.dateTime, start.dateTime, units = "mins"),
-        calendar = "rozran00@gmail.com"
-    )
-    
-    events <- bind_rows(day_start, events)
-    
-    #######################################################
-    
-    start.dateTime = strptime(paste0(Sys.Date(), ":16:00:00"), 
-                              format = "%Y-%m-%d:%H:%M:%S", 
-                              tz = "UTC")
-    end.dateTime = strptime(paste0(Sys.Date(), ":19:00:00"), 
-                            format = "%Y-%m-%d:%H:%M:%S",
-                            tz = "UTC")
-    day_end <- tibble(
-        event = "With the Family",
-        start = start.dateTime,
-        end = end.dateTime,
-        length = difftime(end.dateTime, start.dateTime, units = "mins"),
-        calendar = "rozran00@gmail.com"
-    )
-    
-    events <- bind_rows(events, day_end) %>% 
-        arrange(start, end)
-} 
-
-events <- events %>% 
-    mutate(calendar = ifelse(event == "STAT 4380", 
-                             "jacob.rozran@villanova.edu",
-                             calendar)) %>% 
-    unique()
-
-max_events <- dim(events)[1]
-event <- 2
-
-while (event <= max_events) {
-    last_event <- event - 1
-    
-    end_time <- events$start[event]
-    start_time <- events$end[last_event]
-    
-    time_diff <- difftime(end_time, 
-                          start_time, 
-                          units = "mins")
-    
-    if (time_diff > 0 & events$event[last_event] != events$event[event]) {
-        max_events <- max_events + 1
-        
-        free_time <- tibble(
-            event = "Free Time",
-            start = start_time,
-            end = end_time,
-            length = time_diff,
+    if (!weekdays(Sys.Date()) %in% c("Saturday", "Sunday")) {
+        start.dateTime = strptime(paste0(Sys.Date(), ":06:15:00"), 
+                                  format = "%Y-%m-%d:%H:%M:%S", 
+                                  tz = "UTC")
+        end.dateTime = strptime(paste0(Sys.Date(), ":07:30:00"), 
+                                format = "%Y-%m-%d:%H:%M:%S",
+                                tz = "UTC")
+        day_start <- tibble(
+            event = "With the Family",
+            start = start.dateTime,
+            end = end.dateTime,
+            length = difftime(end.dateTime, start.dateTime, units = "mins"),
             calendar = "rozran00@gmail.com"
         )
         
-        events <- bind_rows(
-            events[1:last_event, ],
-            free_time,
-            events[event:max_events, ]
+        events <- bind_rows(day_start, events)
+        
+        #######################################################
+        
+        start.dateTime = strptime(paste0(Sys.Date(), ":07:30:00"), 
+                                  format = "%Y-%m-%d:%H:%M:%S", 
+                                  tz = "UTC")
+        end.dateTime = strptime(paste0(Sys.Date(), ":08:30:00"), 
+                                format = "%Y-%m-%d:%H:%M:%S",
+                                tz = "UTC")
+        day_start <- tibble(
+            event = "Drop Off Kids",
+            start = start.dateTime,
+            end = end.dateTime,
+            length = difftime(end.dateTime, start.dateTime, units = "mins"),
+            calendar = "rozran00@gmail.com"
         )
+        
+        events <- bind_rows(day_start, events)
+        
+        #######################################################
+        
+        start.dateTime = strptime(paste0(Sys.Date(), ":16:00:00"), 
+                                  format = "%Y-%m-%d:%H:%M:%S", 
+                                  tz = "UTC")
+        end.dateTime = strptime(paste0(Sys.Date(), ":19:00:00"), 
+                                format = "%Y-%m-%d:%H:%M:%S",
+                                tz = "UTC")
+        day_end <- tibble(
+            event = "With the Family",
+            start = start.dateTime,
+            end = end.dateTime,
+            length = difftime(end.dateTime, start.dateTime, units = "mins"),
+            calendar = "rozran00@gmail.com"
+        )
+        
+        events <- bind_rows(events, day_end) %>% 
+            arrange(start, end)
+    } 
+    
+    events <- events %>% 
+        mutate(calendar = ifelse(event == "STAT 4380", 
+                                 "jacob.rozran@villanova.edu",
+                                 calendar)) %>% 
+        unique()
+    
+    max_events <- dim(events)[1]
+    event <- 2
+    
+    while (event <= max_events) {
+        last_event <- event - 1
+        
+        end_time <- events$start[event]
+        start_time <- events$end[last_event]
+        
+        time_diff <- difftime(end_time, 
+                              start_time, 
+                              units = "mins")
+        
+        if (time_diff > 0 & events$event[last_event] != events$event[event]) {
+            max_events <- max_events + 1
+            
+            free_time <- tibble(
+                event = "Free Time",
+                start = start_time,
+                end = end_time,
+                length = time_diff,
+                calendar = "rozran00@gmail.com"
+            )
+            
+            events <- bind_rows(
+                events[1:last_event, ],
+                free_time,
+                events[event:max_events, ]
+            )
+        }
+        
+        event <- event + 1
     }
     
-    event <- event + 1
+    events <- events %>% 
+        filter(!is.na(event)) %>% 
+        mutate(start = format(start, "%I:%M:%S %p"),
+               end = format(end, "%I:%M:%S %p"))
+    
+    free_time <- events %>% 
+        filter(event == "Free Time")
+    
+    wo_window_num <- dim(free_time[free_time$length >= 60, ])[1]
+    wo_windows <- free_time %>% 
+        filter(length >= 60) %>% 
+        mutate(wo_windows = paste0(start, "-", end)) %>% 
+        pull(wo_windows) %>% 
+        paste0(collapse = "; ")
+} else {
+    wo_window_num <- 1
+    wo_windows <- "all day"
 }
-
-events <- events %>% 
-    filter(!is.na(event)) %>% 
-    mutate(start = format(start, "%I:%M:%S %p"),
-           end = format(end, "%I:%M:%S %p"))
-
-free_time <- events %>% 
-    filter(event == "Free Time")
-
-wo_window_num <- dim(free_time[free_time$length >= 60, ])[1]
-wo_windows <- free_time %>% 
-    filter(length >= 60) %>% 
-    mutate(wo_windows = paste0(start, "-", end)) %>% 
-    pull(wo_windows) %>% 
-    paste0(collapse = "; ")
 
 ## This Week's Workout Schedule
 wo <- read_csv("../data/workout_schedule.csv") %>% 
     mutate(day_workout = case_when(
         lift == TRUE ~ "Weightlifting",
         soccer == TRUE ~ "Soccer",
-        run == TRUE ~ "Run",
+        run == TRUE ~ "Running",
         sauna == TRUE ~ "Recovery + Sauna"),
         day_workout = ifelse(walk == TRUE, 
-                             paste0(day_workout, " + Walk"),
+                             paste0(day_workout, " + Walking"),
                              day_workout)) %>% 
     select(dotw,
            date, 
@@ -206,7 +215,8 @@ if (grepl("Soccer", todays_wo)) {
 # your time in during these windows: `r wo_windows`.
 
 # Cycles Data
-cycles <- read_csv("../data/cycles.csv")
+cycles <- read_csv("../data/cycles.csv") %>% 
+    mutate(day_cal = 0.239 * day_kilojoules)
 
 day_start <- unlist(
     str_split(cycles$during, ",")
@@ -216,7 +226,7 @@ day_start <- as_date(day_start, format = "%Y-%m-%dT%H:%M:%OSZ")
 
 cycles <- cycles %>% 
     mutate(day_start = day_start,
-           dotw = weekdays(day_start))
+           dotw = weekdays(day_start, abbreviate = TRUE))
 day_start <- NULL
 
 cycles_sum <- cycles %>% 
@@ -225,23 +235,26 @@ cycles_sum <- cycles %>%
     slice_head(n = 10) %>% 
     summarise(avg_strain = mean(day_strain),
               avg_score = mean(scaled_strain),
-              avg_kj = mean(day_kilojoules))
+              avg_kj = mean(day_kilojoules),
+              avg_cal = mean(day_cal))
 
-cycles <- cycles %>%
+cycles_plot <- cycles %>%
     head(10) %>% 
     left_join(cycles_sum, by = "dotw") %>% 
     select(day_start, 
            day_strain,
            scaled_strain,
            day_kilojoules,
+           day_cal,
            avg_strain,
            avg_score,
            avg_kj,
+           avg_cal,
            dotw) %>% 
     mutate(avg_strain = avg_strain * 1000,
            day_strain = day_strain * 1000)
 
-todays_strain_exp <- cycles %>% 
+todays_strain_exp <- cycles_plot %>% 
     head(1) %>% 
     pull(avg_strain) %>% 
     round(2)
@@ -277,6 +290,10 @@ avg_workout <- workouts %>%
 
 todays_workouts <- workouts %>% 
     filter(as_date(created_at) == Sys.Date())
+
+# Sleep
+
+sleep <- read_csv("../data/sleeps.csv")
 ```
 
 Today
@@ -296,13 +313,14 @@ Column {data-width=650 .tabset}
 
 # If there are two events in today's plan
 if (grepl("\\+", todays_wo)) {
-    todays_wo <- unlist(str_split(todays_wo, " + "))
+    todays_wo <- unlist(str_split(todays_wo, " \\+ "))
 }
 
 expected_strain <- 0
 
 # Have you done those workouts yet? 
 for (two in todays_wo) {
+    
     if (two %in% todays_workouts$name) {
         next
     } 
@@ -310,7 +328,7 @@ for (two in todays_wo) {
     expected_strain <- expected_strain + avg_workout$avg_intensity_score[avg_workout$name == two]
 }
 
-plot_data <- cycles %>% 
+plot_data <- cycles_plot %>% 
     head(1)  %>% 
     select(day_start,
            day_strain, 
@@ -397,28 +415,82 @@ Column {data-width=650 .tabset}
 
 ### Day Strain
 
-```{r, fig.retina = 6}
-ggplot(cycles, aes(x = day_start)) +
+```{r, out.width = "100%", fig.retina = 6}
+strain <- ggplot(cycles_plot, aes(x = day_start)) +
     geom_bar(aes(y = day_strain), 
              stat = "identity",
              fill = "#00A3E1") + 
     geom_errorbar(aes(ymin = avg_strain, ymax = avg_strain)) + 
     geom_text(aes(label = dotw, y = 1),
-              size = label_size) + 
+              size = lit_label_size) + 
     geom_text(aes(label = percent((day_strain - avg_strain) / avg_strain, 
                                   accuracy = 0.01), 
                   y = day_strain - 0.25),
-              size = label_size) +
+              size = lit_label_size) +
+    ggtitle("Daily Strain vs. Average") + 
     geom_text(aes(label = round(avg_strain, 2), y = avg_strain + 0.25),
-              size = label_size) + 
+              size = lit_label_size) + 
     geom_text(aes(label = round(day_strain, 2), y = day_strain + 0.25),
-              size = label_size) + 
+              size = lit_label_size) + 
     theme(panel.background = element_blank(),
           axis.title = element_blank(),
           axis.ticks = element_blank(),
+          axis.text = element_text(size = 5),
+          title = element_text(size = title_size),
           panel.grid.major.y = element_line(color = "light gray"),
           panel.grid.major.x = element_blank())
 
+kj <- ggplot(cycles_plot, aes(x = day_start)) +
+    geom_bar(aes(y = day_kilojoules), 
+             stat = "identity",
+             fill = "#00A3E1") + 
+    geom_errorbar(aes(ymin = avg_kj, ymax = avg_kj)) + 
+    geom_text(aes(label = dotw, y = 500),
+              size = lit_label_size) + 
+    geom_text(aes(label = percent((day_kilojoules - avg_kj) / avg_kj, 
+                                  accuracy = 1), 
+                  y = day_kilojoules - 300),
+              size = lit_label_size) +
+    ggtitle("Daily KJ vs. Average") + 
+    geom_text(aes(label = comma(avg_kj), y = avg_kj + 300),
+              size = lit_label_size) + 
+    geom_text(aes(label = comma(day_kilojoules), y = day_kilojoules + 300),
+              size = lit_label_size) + 
+    scale_y_continuous(labels = comma_format()) + 
+    theme(panel.background = element_blank(),
+          axis.title = element_blank(),
+          axis.ticks = element_blank(),
+          axis.text = element_text(size = 5),
+          title = element_text(size = title_size),
+          panel.grid.major.y = element_line(color = "light gray"),
+          panel.grid.major.x = element_blank())
+
+cal <- ggplot(cycles_plot, aes(x = day_start)) +
+    geom_bar(aes(y = day_cal), 
+             stat = "identity",
+             fill = "#00A3E1") + 
+    geom_errorbar(aes(ymin = avg_cal, ymax = avg_cal)) + 
+    geom_text(aes(label = dotw, y = 100),
+              size = lit_label_size) + 
+    geom_text(aes(label = percent((day_cal - avg_cal) / avg_cal, 
+                                  accuracy = 1), 
+                  y = day_cal - 75),
+              size = lit_label_size) +
+    ggtitle("Daily Calories vs. Average") + 
+    geom_text(aes(label = comma(avg_cal), y = avg_cal + 75),
+              size = lit_label_size) + 
+    geom_text(aes(label = comma(day_cal), y = day_cal + 75),
+              size = lit_label_size) + 
+    scale_y_continuous(labels = comma_format()) + 
+    theme(panel.background = element_blank(),
+          axis.title = element_blank(),
+          axis.ticks = element_blank(),
+          axis.text = element_text(size = 5),
+          title = element_text(size = title_size),
+          panel.grid.major.y = element_line(color = "light gray"),
+          panel.grid.major.x = element_blank())
+
+grid.arrange(strain, kj, cal, ncol = 1)
 ```
 
 ### Recovery
@@ -437,7 +509,7 @@ rhr <- ggplot(recovery[1:10, ], aes(x = date, y = resting_heart_rate)) +
     geom_hline(yintercept = mean_rhr) + 
     geom_text(aes(label = dotw, y = min(resting_heart_rate) - 2),
               size = lit_label_size) + 
-    geom_text(label = paste0("30 day avg. rhr: ", mean_rhr), 
+    geom_text(label = paste0("30 day avg. rhr: ", round(mean_rhr, 2)),
               y = mean_rhr + 0.75,
               x = min(recovery$date[1:10]) - days(1),
               hjust = 0,
@@ -557,18 +629,207 @@ grid.arrange(rhr, hrv, temp, spo2, nrow = 2)
 
 ```
 
-Column {data-width=350}
+
+Health Trend Data 
+=====================================
+
+Column {data-width=650 .tabset}
 -----------------------------------------------------------------------
 
-### Chart C
+### Strain Trends
 
-```{r}
+```{r, out.width = "100%", fig.retina = 6}
+strain_trends <- cycles %>% 
+    mutate(strain_7d = rollmean(day_strain * 1000, 7, align = "left", fill = NA, na.rm = TRUE),
+           kj_7d = rollmean(day_kilojoules, 7, align = "left", fill = NA, na.rm = TRUE),
+           cal_7d = rollmean(day_cal, 7, align = "left", fill = NA, na.rm = TRUE),
+           strain_7d_nm = ((strain_7d - min(strain_7d, na.rm = TRUE)) / 
+                             (max(strain_7d, na.rm = TRUE) - min(strain_7d, na.rm = TRUE))),
+           kj_7d_nm = ((kj_7d - min(kj_7d, na.rm = TRUE)) / 
+                             (max(kj_7d, na.rm = TRUE) - min(kj_7d, na.rm = TRUE))),
+           cal_7d_nm = ((cal_7d - min(cal_7d, na.rm = TRUE)) / 
+                             (max(cal_7d, na.rm = TRUE) - min(cal_7d, na.rm = TRUE)))) %>% 
+    select(day_start, 
+           dotw,
+           day_strain, 
+           day_kilojoules, 
+           day_cal, 
+           strain_7d,
+           kj_7d,
+           cal_7d,
+           strain_7d_nm,
+           kj_7d_nm,
+           cal_7d_nm)
+
+
+plot_dat_7d <- strain_trends %>% 
+    select(day_start, 
+           dotw,
+           strain_7d_nm,
+           kj_7d_nm,
+           cal_7d_nm) %>% 
+    rename(`Strain (should be high)` = strain_7d_nm,
+           `Kilojoules (should be high)` = kj_7d_nm,
+           `Calories (should be high)` = cal_7d_nm) %>%
+    pivot_longer(!c(day_start, dotw), names_to = "measure", values_to = "values") %>% 
+    mutate(length = "7d Moving Average")
+
+strain_trends <- cycles %>% 
+    mutate(strain_7d = rollmean(day_strain * 1000, 30, align = "left", fill = NA, na.rm = TRUE),
+           kj_7d = rollmean(day_kilojoules, 30, align = "left", fill = NA, na.rm = TRUE),
+           cal_7d = rollmean(day_cal, 30, align = "left", fill = NA, na.rm = TRUE),
+           strain_7d_nm = ((strain_7d - min(strain_7d, na.rm = TRUE)) / 
+                             (max(strain_7d, na.rm = TRUE) - min(strain_7d, na.rm = TRUE))),
+           kj_7d_nm = ((kj_7d - min(kj_7d, na.rm = TRUE)) / 
+                             (max(kj_7d, na.rm = TRUE) - min(kj_7d, na.rm = TRUE))),
+           cal_7d_nm = ((cal_7d - min(cal_7d, na.rm = TRUE)) / 
+                             (max(cal_7d, na.rm = TRUE) - min(cal_7d, na.rm = TRUE)))) %>% 
+    select(day_start, 
+           dotw,
+           day_strain, 
+           day_kilojoules, 
+           day_cal, 
+           strain_7d,
+           kj_7d,
+           cal_7d,
+           strain_7d_nm,
+           kj_7d_nm,
+           cal_7d_nm)
+
+
+plot_dat_30d <- strain_trends %>% 
+    select(day_start, 
+           dotw,
+           strain_7d_nm,
+           kj_7d_nm,
+           cal_7d_nm) %>% 
+    rename(`Strain (should be high)` = strain_7d_nm,
+           `Kilojoules (should be high)` = kj_7d_nm,
+           `Calories (should be high)` = cal_7d_nm) %>%
+    pivot_longer(!c(day_start, dotw), names_to = "measure", values_to = "values") %>% 
+    mutate(length = "30d Moving Average")
+
+plot_dat <- bind_rows(plot_dat_7d, plot_dat_30d)
+
+ggplot(plot_dat, aes(x = day_start, y = values, color = length, group = length)) +
+    geom_line() + 
+    facet_wrap(~ measure, ncol = 1) + 
+    theme(legend.position = "top",
+          legend.title = element_blank(),
+          legend.key = element_blank(),
+          panel.background = element_blank(),
+          axis.title = element_blank(),
+          axis.ticks = element_blank(),
+          panel.grid.major.y = element_line(color = "light gray"),
+          panel.grid.major.x = element_blank(),
+          axis.text.y = element_blank(),
+          strip.background = element_blank())
 
 ```
 
-### Chart D
+### Recovery Trends
 
-```{r}
+```{r, out.width = "100%", fig.retina = 6}
+recovery_trends <- recovery %>% 
+    mutate(spo2_7d = rollmean(spo2, 7, align = "left", fill = NA, na.rm = TRUE),
+           rhr_7d = rollmean(resting_heart_rate, 7, align = "left", fill = NA, na.rm = TRUE),
+           hrv_7d = rollmean(hrv_rmssd, 7, align = "left", fill = NA, na.rm = TRUE),
+           stf_7d = rollmean(skin_temp_f, 7, align = "left", fill = NA, na.rm = TRUE),
+           spo2_7d_nm = ((spo2_7d - min(spo2_7d, na.rm = TRUE)) / 
+                             (max(spo2_7d, na.rm = TRUE) - min(spo2_7d, na.rm = TRUE))),
+           rhr_7d_nm = ((rhr_7d - min(rhr_7d, na.rm = TRUE)) / 
+                             (max(rhr_7d, na.rm = TRUE) - min(rhr_7d, na.rm = TRUE))),
+           hrv_7d_nm = ((hrv_7d - min(hrv_7d, na.rm = TRUE)) / 
+                             (max(hrv_7d, na.rm = TRUE) - min(hrv_7d, na.rm = TRUE))),
+           stf_7d_nm = ((stf_7d - min(stf_7d, na.rm = TRUE)) / 
+                             (max(stf_7d, na.rm = TRUE) - min(stf_7d, na.rm = TRUE)))) %>% 
+    select(date, 
+           dotw,
+           spo2, 
+           resting_heart_rate, 
+           hrv_rmssd, 
+           skin_temp_f,
+           spo2_7d,
+           rhr_7d,
+           hrv_7d,
+           stf_7d,
+           spo2_7d_nm,
+           rhr_7d_nm,
+           hrv_7d_nm,
+           stf_7d_nm)
+
+
+plot_dat_7d <- recovery_trends %>% 
+    select(date, 
+           dotw,
+           spo2_7d_nm,
+           rhr_7d_nm,
+           hrv_7d_nm,
+           stf_7d_nm) %>% 
+    rename(`Heart Rate Variability (should be high)` = hrv_7d_nm,
+           `Resting Heart Rate (should be low)` = rhr_7d_nm,
+           `SPO2 (should be high)` = spo2_7d_nm,
+           `Skin Temp (should be constant)` = stf_7d_nm) %>%
+    pivot_longer(!c(date, dotw), names_to = "measure", values_to = "values") %>% 
+    mutate(length = "7d Moving Average")
+
+recovery_trends <- recovery %>% 
+    mutate(spo2_7d = rollmean(spo2, 30, align = "left", fill = NA, na.rm = TRUE),
+           rhr_7d = rollmean(resting_heart_rate, 30, align = "left", fill = NA, na.rm = TRUE),
+           hrv_7d = rollmean(hrv_rmssd, 30, align = "left", fill = NA, na.rm = TRUE),
+           stf_7d = rollmean(skin_temp_f, 30, align = "left", fill = NA, na.rm = TRUE),
+           spo2_7d_nm = ((spo2_7d - min(spo2_7d, na.rm = TRUE)) / 
+                             (max(spo2_7d, na.rm = TRUE) - min(spo2_7d, na.rm = TRUE))),
+           rhr_7d_nm = ((rhr_7d - min(rhr_7d, na.rm = TRUE)) / 
+                             (max(rhr_7d, na.rm = TRUE) - min(rhr_7d, na.rm = TRUE))),
+           hrv_7d_nm = ((hrv_7d - min(hrv_7d, na.rm = TRUE)) / 
+                             (max(hrv_7d, na.rm = TRUE) - min(hrv_7d, na.rm = TRUE))),
+           stf_7d_nm = ((stf_7d - min(stf_7d, na.rm = TRUE)) / 
+                             (max(stf_7d, na.rm = TRUE) - min(stf_7d, na.rm = TRUE)))) %>% 
+    select(date, 
+           dotw,
+           spo2, 
+           resting_heart_rate, 
+           hrv_rmssd, 
+           skin_temp_f,
+           spo2_7d,
+           rhr_7d,
+           hrv_7d,
+           stf_7d,
+           spo2_7d_nm,
+           rhr_7d_nm,
+           hrv_7d_nm,
+           stf_7d_nm)
+
+
+plot_dat_30d <- recovery_trends %>% 
+    select(date, 
+           dotw,
+           spo2_7d_nm,
+           rhr_7d_nm,
+           hrv_7d_nm,
+           stf_7d_nm) %>% 
+    rename(`Heart Rate Variability (should be high)` = hrv_7d_nm,
+           `Resting Heart Rate (should be low)` = rhr_7d_nm,
+           `SPO2 (should be high)` = spo2_7d_nm,
+           `Skin Temp (should be constant)` = stf_7d_nm) %>%
+    pivot_longer(!c(date, dotw), names_to = "measure", values_to = "values") %>% 
+    mutate(length = "30d Moving Average")
+
+plot_dat <- bind_rows(plot_dat_7d, plot_dat_30d)
+
+ggplot(plot_dat, aes(x = date, y = values, color = length, group = length)) +
+    geom_line() + 
+    facet_wrap(~ measure, ncol = 1) + 
+    theme(legend.position = "top",
+          legend.title = element_blank(),
+          legend.key = element_blank(),
+          panel.background = element_blank(),
+          axis.title = element_blank(),
+          axis.ticks = element_blank(),
+          panel.grid.major.y = element_line(color = "light gray"),
+          panel.grid.major.x = element_blank(),
+          axis.text.y = element_blank(),
+          strip.background = element_blank())
 
 ```
-
