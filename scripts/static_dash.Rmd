@@ -31,6 +31,7 @@ system("python get_events.py")
 label_size <- 2.75
 title_size <- 8
 lit_label_size <- 1.75
+ms_in_hour <- 3600000
 
 # Today's Events
 events <- read_csv("../data/calendar_events.csv") 
@@ -294,7 +295,64 @@ todays_workouts <- workouts %>%
 
 # Sleep
 
-sleep <- read_csv("../data/sleeps.csv")
+get_sleep_data <- function() {
+    sleep <- read_csv("../data/sleeps.csv") %>% 
+        filter(is_nap == FALSE)
+    
+    sleep <- sleep %>% 
+        bind_cols(
+            as_tibble(do.call(rbind, str_split(sleep$during, ","))) %>% 
+                mutate(sleep_start = as_datetime(V1, format = "['%Y-%m-%dT%H:%M:%OSZ'"),
+                       sleep_end = as_datetime(V2, format = "'%Y-%m-%dT%H:%M:%OSZ')")) %>% 
+                select(sleep_start,
+                       sleep_end)
+        ) %>% 
+        mutate(sleep_start = sleep_start + hours(timezone_offset / 100),
+               sleep_end = sleep_end + hours(timezone_offset / 100),
+               quality_duration = quality_duration / ms_in_hour,
+               latency = latency / ms_in_hour,
+               debt_pre = debt_pre / ms_in_hour,
+               debt_post = debt_post / ms_in_hour,
+               need_from_strain = need_from_strain / ms_in_hour,
+               sleep_need = sleep_need / ms_in_hour,
+               habitual_sleep_need = habitual_sleep_need / ms_in_hour,
+               time_in_bed = time_in_bed / ms_in_hour,
+               light_sleep_duration = light_sleep_duration / ms_in_hour,
+               slow_wave_sleep_duration = slow_wave_sleep_duration / ms_in_hour,
+               rem_sleep_duration = rem_sleep_duration / ms_in_hour,
+               wake_duration = wake_duration / ms_in_hour,
+               arousal_time = arousal_time / ms_in_hour,
+               credit_from_naps = credit_from_naps / ms_in_hour,
+               projected_sleep = projected_sleep / ms_in_hour,
+               total_sleep = credit_from_naps + quality_duration,
+               date = as_date(sleep_end),
+               dotw = weekdays(date, abbreviate = TRUE)) %>% 
+        select(date,
+               dotw,
+               sleep_start,
+               sleep_end,
+               score, 
+               total_sleep,
+               quality_duration,
+               latency,
+               debt_pre,
+               debt_post,
+               need_from_strain,
+               sleep_need,
+               habitual_sleep_need,
+               disturbances,
+               time_in_bed,
+               light_sleep_duration,
+               slow_wave_sleep_duration,
+               rem_sleep_duration,
+               cycles_count,
+               wake_duration,
+               arousal_time,
+               in_sleep_efficiency,
+               credit_from_naps,
+               respiratory_rate,
+               sleep_consistency) 
+}
 ```
 
 Today
@@ -627,7 +685,37 @@ grid.arrange(rhr, hrv, temp, spo2, nrow = 2)
 ### Sleep
 
 ```{r}
-
+get_sleep_data() %>% 
+    head(10) %>% 
+    select(date,
+           dotw,
+           wake_duration,
+           light_sleep_duration,
+           slow_wave_sleep_duration,
+           rem_sleep_duration,
+           credit_from_naps) %>% 
+    rename(Awake = wake_duration,
+           Light = light_sleep_duration,
+           SWS = slow_wave_sleep_duration,
+           REM = rem_sleep_duration,
+           Naps = credit_from_naps) %>% 
+    pivot_longer(!c(date, dotw), names_to = "category", values_to = "hours") %>% 
+    ggplot(aes(x = date, y = hours, fill = category, group = category)) +
+        geom_area(stat = "identity", 
+                  position = "fill", 
+                  alpha = 0.75,
+                  color = "navy") + 
+        scale_fill_brewer(palette = "Blues") + 
+        scale_y_continuous(labels = percent_format()) +
+        geom_text(aes(label = dotw, y = 0.05),
+                  size = label_size) +
+        theme(panel.background = element_blank(),
+              axis.title = element_blank(),
+              axis.ticks = element_blank(),
+              panel.grid.major.y = element_line(color = "light gray"),
+              panel.grid.major.x = element_blank(),
+              legend.title = element_blank(),
+              legend.position = "top")
 ```
 
 
@@ -641,25 +729,20 @@ Column {data-width=650 .tabset}
 
 ```{r, out.width = "100%", fig.retina = 6}
 strain_trends <- cycles %>% 
+    filter(day_start < Sys.Date()) %>% 
     mutate(strain_7d = rollmean(day_strain * 1000, 7, align = "left", fill = NA, na.rm = TRUE),
-           kj_7d = rollmean(day_kilojoules, 7, align = "left", fill = NA, na.rm = TRUE),
            cal_7d = rollmean(day_cal, 7, align = "left", fill = NA, na.rm = TRUE),
            strain_7d_nm = ((strain_7d - min(strain_7d, na.rm = TRUE)) / 
                              (max(strain_7d, na.rm = TRUE) - min(strain_7d, na.rm = TRUE))),
-           kj_7d_nm = ((kj_7d - min(kj_7d, na.rm = TRUE)) / 
-                             (max(kj_7d, na.rm = TRUE) - min(kj_7d, na.rm = TRUE))),
            cal_7d_nm = ((cal_7d - min(cal_7d, na.rm = TRUE)) / 
                              (max(cal_7d, na.rm = TRUE) - min(cal_7d, na.rm = TRUE)))) %>% 
     select(day_start, 
            dotw,
            day_strain, 
-           day_kilojoules, 
            day_cal, 
            strain_7d,
-           kj_7d,
            cal_7d,
            strain_7d_nm,
-           kj_7d_nm,
            cal_7d_nm)
 
 
@@ -667,45 +750,35 @@ plot_dat_7d <- strain_trends %>%
     select(day_start, 
            dotw,
            strain_7d_nm,
-           kj_7d_nm,
            cal_7d_nm) %>% 
     rename(`Strain (should be high)` = strain_7d_nm,
-           `Kilojoules (should be high)` = kj_7d_nm,
            `Calories (should be high)` = cal_7d_nm) %>%
     pivot_longer(!c(day_start, dotw), names_to = "measure", values_to = "values") %>% 
     mutate(length = "7d Moving Average")
 
 strain_trends <- cycles %>% 
+    filter(day_start < Sys.Date()) %>% 
     mutate(strain_7d = rollmean(day_strain * 1000, 30, align = "left", fill = NA, na.rm = TRUE),
-           kj_7d = rollmean(day_kilojoules, 30, align = "left", fill = NA, na.rm = TRUE),
            cal_7d = rollmean(day_cal, 30, align = "left", fill = NA, na.rm = TRUE),
            strain_7d_nm = ((strain_7d - min(strain_7d, na.rm = TRUE)) / 
                              (max(strain_7d, na.rm = TRUE) - min(strain_7d, na.rm = TRUE))),
-           kj_7d_nm = ((kj_7d - min(kj_7d, na.rm = TRUE)) / 
-                             (max(kj_7d, na.rm = TRUE) - min(kj_7d, na.rm = TRUE))),
            cal_7d_nm = ((cal_7d - min(cal_7d, na.rm = TRUE)) / 
                              (max(cal_7d, na.rm = TRUE) - min(cal_7d, na.rm = TRUE)))) %>% 
     select(day_start, 
            dotw,
            day_strain, 
-           day_kilojoules, 
            day_cal, 
            strain_7d,
-           kj_7d,
            cal_7d,
            strain_7d_nm,
-           kj_7d_nm,
            cal_7d_nm)
-
 
 plot_dat_30d <- strain_trends %>% 
     select(day_start, 
            dotw,
            strain_7d_nm,
-           kj_7d_nm,
            cal_7d_nm) %>% 
     rename(`Strain (should be high)` = strain_7d_nm,
-           `Kilojoules (should be high)` = kj_7d_nm,
            `Calories (should be high)` = cal_7d_nm) %>%
     pivot_longer(!c(day_start, dotw), names_to = "measure", values_to = "values") %>% 
     mutate(length = "30d Moving Average")
@@ -732,6 +805,7 @@ ggplot(plot_dat, aes(x = day_start, y = values, color = length, group = length))
 
 ```{r, out.width = "100%", fig.retina = 6}
 recovery_trends <- recovery %>% 
+    filter(date < Sys.Date()) %>% 
     mutate(spo2_7d = rollmean(spo2, 7, align = "left", fill = NA, na.rm = TRUE),
            rhr_7d = rollmean(resting_heart_rate, 7, align = "left", fill = NA, na.rm = TRUE),
            hrv_7d = rollmean(hrv_rmssd, 7, align = "left", fill = NA, na.rm = TRUE),
@@ -775,6 +849,7 @@ plot_dat_7d <- recovery_trends %>%
     mutate(length = "7d Moving Average")
 
 recovery_trends <- recovery %>% 
+    filter(date < Sys.Date()) %>% 
     mutate(spo2_7d = rollmean(spo2, 30, align = "left", fill = NA, na.rm = TRUE),
            rhr_7d = rollmean(resting_heart_rate, 30, align = "left", fill = NA, na.rm = TRUE),
            hrv_7d = rollmean(hrv_rmssd, 30, align = "left", fill = NA, na.rm = TRUE),
