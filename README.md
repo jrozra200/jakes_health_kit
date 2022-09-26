@@ -18,11 +18,14 @@ detailed.
     - Strain
     - Calories
     - Kilojoules
+    - Total Workout Time
+    - Time in each heart rate zone
 - Recovery tab
     - rhr
     - hrv
     - skin temp
     - spo2
+    - Respiratory rate (from sleeps)
 - Sleep tab
     - Time in bed
     - cycles
