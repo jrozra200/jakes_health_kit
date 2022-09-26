@@ -105,6 +105,7 @@ if (dim(events)[1] > 0) {
     } 
     
     events <- events %>% 
+        filter(!is.na(start) | !is.na(end)) %>% 
         mutate(calendar = ifelse(event == "STAT 4380", 
                                  "jacob.rozran@villanova.edu",
                                  calendar)) %>% 
