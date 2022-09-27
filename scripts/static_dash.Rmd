@@ -10,349 +10,57 @@ output:
 
 
 ```{r setup, include = FALSE}
-library(flexdashboard)
-library(bslib)
-library(readr)
-library(scales)
-library(dplyr)
-library(ggplot2)
-library(stringr)
-library(lubridate)
-library(knitr)
-library(kableExtra)
-library(gridExtra)
-library(tidyr)
-library(zoo)
+# LIBRARIES
+source("01_hk_libraries.R")
 
+# DATA REFRESH
 system("python whoop.py")
 system("Rscript --vanilla rules.R")
 system("python get_events.py")
+# RENPHO
+# EIGHT SLEEP
+# STRAVA
 
-label_size <- 2.75
-title_size <- 8
-lit_label_size <- 1.75
-ms_in_hour <- 3600000
+# DATA SOURCE FUNCTIONS
+source("02_hk_data_functions.R")
 
-# Today's Events
-events <- read_csv("../data/calendar_events.csv") 
+# PLOT FUNCTIONS
+source("03_hk_plot_functions.R")
 
-if (dim(events)[1] > 0) {
-    events <- events %>% 
-        mutate(length = difftime(end.dateTime, start.dateTime, units = "mins"),
-               start.dateTime = start.dateTime - hours(4),
-               end.dateTime = end.dateTime - hours(4)) %>% 
-        rename(start = start.dateTime,
-               end = end.dateTime,
-               event = summary) %>% 
-        select(event, 
-               start,
-               end,
-               length,
-               calendar)
-    
-    if (!weekdays(Sys.Date()) %in% c("Saturday", "Sunday")) {
-        start.dateTime = strptime(paste0(Sys.Date(), ":06:15:00"), 
-                                  format = "%Y-%m-%d:%H:%M:%S", 
-                                  tz = "UTC")
-        end.dateTime = strptime(paste0(Sys.Date(), ":07:30:00"), 
-                                format = "%Y-%m-%d:%H:%M:%S",
-                                tz = "UTC")
-        day_start <- tibble(
-            event = "With the Family",
-            start = start.dateTime,
-            end = end.dateTime,
-            length = difftime(end.dateTime, start.dateTime, units = "mins"),
-            calendar = "rozran00@gmail.com"
-        )
-        
-        events <- bind_rows(day_start, events)
-        
-        #######################################################
-        
-        start.dateTime = strptime(paste0(Sys.Date(), ":07:30:00"), 
-                                  format = "%Y-%m-%d:%H:%M:%S", 
-                                  tz = "UTC")
-        end.dateTime = strptime(paste0(Sys.Date(), ":08:30:00"), 
-                                format = "%Y-%m-%d:%H:%M:%S",
-                                tz = "UTC")
-        day_start <- tibble(
-            event = "Drop Off Kids",
-            start = start.dateTime,
-            end = end.dateTime,
-            length = difftime(end.dateTime, start.dateTime, units = "mins"),
-            calendar = "rozran00@gmail.com"
-        )
-        
-        events <- bind_rows(day_start, events)
-        
-        #######################################################
-        
-        start.dateTime = strptime(paste0(Sys.Date(), ":16:00:00"), 
-                                  format = "%Y-%m-%d:%H:%M:%S", 
-                                  tz = "UTC")
-        end.dateTime = strptime(paste0(Sys.Date(), ":19:00:00"), 
-                                format = "%Y-%m-%d:%H:%M:%S",
-                                tz = "UTC")
-        day_end <- tibble(
-            event = "With the Family",
-            start = start.dateTime,
-            end = end.dateTime,
-            length = difftime(end.dateTime, start.dateTime, units = "mins"),
-            calendar = "rozran00@gmail.com"
-        )
-        
-        events <- bind_rows(events, day_end) %>% 
-            arrange(start, end)
-    } 
-    
-    events <- events %>% 
-        filter(!is.na(start) | !is.na(end)) %>% 
-        mutate(calendar = ifelse(event == "STAT 4380", 
-                                 "jacob.rozran@villanova.edu",
-                                 calendar)) %>% 
-        unique()
-    
-    max_events <- dim(events)[1]
-    event <- 2
-    
-    while (event <= max_events) {
-        last_event <- event - 1
-        
-        end_time <- events$start[event]
-        start_time <- events$end[last_event]
-        
-        time_diff <- difftime(end_time, 
-                              start_time, 
-                              units = "mins")
-        
-        if (time_diff > 0 & events$event[last_event] != events$event[event]) {
-            max_events <- max_events + 1
-            
-            free_time <- tibble(
-                event = "Free Time",
-                start = start_time,
-                end = end_time,
-                length = time_diff,
-                calendar = "rozran00@gmail.com"
-            )
-            
-            events <- bind_rows(
-                events[1:last_event, ],
-                free_time,
-                events[event:max_events, ]
-            )
-        }
-        
-        event <- event + 1
-    }
-    
-    events <- events %>% 
-        filter(!is.na(event)) %>% 
-        mutate(start = format(start, "%I:%M:%S %p"),
-               end = format(end, "%I:%M:%S %p"))
-    
-    free_time <- events %>% 
-        filter(event == "Free Time")
-    
-    wo_window_num <- dim(free_time[free_time$length >= 60, ])[1]
-    wo_windows <- free_time %>% 
-        filter(length >= 60) %>% 
-        mutate(wo_windows = paste0(start, "-", end)) %>% 
-        pull(wo_windows) %>% 
-        paste0(collapse = "; ")
-} else {
-    wo_window_num <- 1
-    wo_windows <- "all day"
-}
+# TABLE FUNCTIONS
+source("04_hk_table_functions.R")
 
-## This Week's Workout Schedule
-wo <- read_csv("../data/workout_schedule.csv") %>% 
-    mutate(day_workout = case_when(
-        lift == TRUE ~ "Weightlifting",
-        soccer == TRUE ~ "Soccer",
-        run == TRUE ~ "Running",
-        sauna == TRUE ~ "Recovery + Sauna"),
-        day_workout = ifelse(walk == TRUE, 
-                             paste0(day_workout, " + Walking"),
-                             day_workout)) %>% 
-    select(dotw,
-           date, 
-           day_workout) %>% 
-    rename(Day = dotw,
-           Date = date,
-           Workout = day_workout)
+# GET EVENTS DATA
+events <- get_events_data()
+wo_window_num <- get_wo_windows_num(events)
+wo_windows <- get_wo_windows(events)
 
-## Today's workout 
-todays_wo <- wo %>% 
-    filter(Date == Sys.Date()) %>% 
-    pull(Workout)
+# GET WORK OUT DATA
+wo <- get_wo_schedule_data()
+todays_wo <- get_todays_wo_data(wo)
+wo_message <- get_wo_message(todays_wo, wo_window_num)
 
-## Workout Availability
+# GET CYCLES DATA
+cycles <- get_cycles_data()
+cycles_plot <- get_cycles_plot_data(cycles)
+todays_strain_exp <- get_todays_strain_exp_data(cycles_plot)
 
-if (grepl("Soccer", todays_wo)) {
-    soccer <- read_csv("../data/futbol_schedule.csv") %>% 
-        filter(as_date(datetime) == Sys.Date())
-    wo_message <- paste0("You have soccer tonight with ", soccer$team[1], " at ",
-                         format(soccer$datetime[1], "%I:%M %p"), " on field ",
-                         soccer$field[1], ".")
-    
-    if (grepl("\\+ Walk", todays_wo)) {
-        wo_message <- paste0(wo_message, " You also have ", wo_window_num, 
-                             " window(s) long enough to get your walk in today.",
-                             " Try to get your walk in during these windows: ",
-                             wo_windows)
-    }
-} else {
-    wo_message <- paste0("You have ", wo_window_num, " window(s) long enough ", 
-                         "to get your workout in today. Try to get your time ", 
-                         "in during these windows: ", wo_windows)
-    
-    if (grepl("\\+ Walk", todays_wo)) {
-        wo_message <- paste0(wo_message, " Don't forget... you also have to ", 
-                             "get your walk with Poppy in today.")
-    }
-}
+# GET RECOVERY DATA 
+recovery <- get_recovery_data()
+mean_rhr <- last_30_day_mean(recovery, "resting_heart_rate")
+mean_hrv <- last_30_day_mean(recovery, "hrv_rmssd")
+mean_st <- last_30_day_mean(recovery, "skin_temp_f")
+mean_spo2 <- last_30_day_mean(recovery, "spo2")
 
-# You have `r wo_window_num` window(s) long enough to work out today. Try to get 
-# your time in during these windows: `r wo_windows`.
+# GET WORKOUTS DATA
+workouts <- get_workouts_data()
+avg_workout <- get_avg_workouts_data(workouts)
+todays_workouts <- get_todays_workout_data(workouts)
 
-# Cycles Data
-cycles <- read_csv("../data/cycles.csv") %>% 
-    mutate(day_cal = 0.239 * day_kilojoules)
+# GET SLEEP DATA 
+sleep <- get_sleep_data()
 
-day_start <- unlist(
-    str_split(cycles$during, ",")
-)[grepl("\\[", unlist(str_split(cycles$during, ",")))]
-day_start <- str_remove_all(day_start, "\\[|\\'")
-day_start <- as_date(day_start, format = "%Y-%m-%dT%H:%M:%OSZ")
 
-cycles <- cycles %>% 
-    mutate(day_start = day_start,
-           dotw = weekdays(day_start, abbreviate = TRUE))
-day_start <- NULL
-
-cycles_sum <- cycles %>% 
-    filter(day_start < Sys.Date()) %>% 
-    group_by(dotw) %>% 
-    slice_head(n = 10) %>% 
-    summarise(avg_strain = mean(day_strain),
-              avg_score = mean(scaled_strain),
-              avg_kj = mean(day_kilojoules),
-              avg_cal = mean(day_cal))
-
-cycles_plot <- cycles %>%
-    head(10) %>% 
-    left_join(cycles_sum, by = "dotw") %>% 
-    select(day_start, 
-           day_strain,
-           scaled_strain,
-           day_kilojoules,
-           day_cal,
-           avg_strain,
-           avg_score,
-           avg_kj,
-           avg_cal,
-           dotw) %>% 
-    mutate(avg_strain = avg_strain * 1000,
-           day_strain = day_strain * 1000)
-
-todays_strain_exp <- cycles_plot %>% 
-    head(1) %>% 
-    pull(avg_strain) %>% 
-    round(2)
-
-# Recovery
-recovery <- read_csv("../data/recovery.csv") %>% 
-    mutate(date = as_date(date),
-           dotw = weekdays(date, abbreviate = TRUE),
-           hrv_rmssd = hrv_rmssd * 1000, 
-           skin_temp_f = skin_temp_celsius * 9 / 5 + 32,
-           spo2 = spo2 / 100)
-
-mean_rhr <- mean(recovery$resting_heart_rate[2:31])
-mean_hrv <- mean(recovery$hrv_rmssd[2:31])
-mean_st <- mean(recovery$skin_temp_f[2:31])
-mean_spo2 <- mean(recovery$spo2[2:31])
-
-# Workouts 
-
-workouts <- read_csv('../data/workouts.csv')
-
-avg_workout <- workouts %>% 
-    filter(!is.na(name)) %>% 
-    mutate(name = case_when(
-        (name == "Powerlifting" | 
-             name == "Functional Fitness") ~ "Weightlifting",
-        1 == 1 ~ name
-    )) %>% 
-    group_by(name) %>% 
-    slice_head(n = 10) %>% 
-    summarise(count = length(name),
-              avg_intensity_score = mean(raw_intensity_score * 1000))
-
-todays_workouts <- workouts %>% 
-    filter(as_date(created_at) == Sys.Date())
-
-# Sleep
-
-get_sleep_data <- function() {
-    sleep <- read_csv("../data/sleeps.csv") %>% 
-        filter(is_nap == FALSE)
-    
-    sleep <- sleep %>% 
-        bind_cols(
-            as_tibble(do.call(rbind, str_split(sleep$during, ","))) %>% 
-                mutate(sleep_start = as_datetime(V1, format = "['%Y-%m-%dT%H:%M:%OSZ'"),
-                       sleep_end = as_datetime(V2, format = "'%Y-%m-%dT%H:%M:%OSZ')")) %>% 
-                select(sleep_start,
-                       sleep_end)
-        ) %>% 
-        mutate(sleep_start = sleep_start + hours(timezone_offset / 100),
-               sleep_end = sleep_end + hours(timezone_offset / 100),
-               quality_duration = quality_duration / ms_in_hour,
-               latency = latency / ms_in_hour,
-               debt_pre = debt_pre / ms_in_hour,
-               debt_post = debt_post / ms_in_hour,
-               need_from_strain = need_from_strain / ms_in_hour,
-               sleep_need = sleep_need / ms_in_hour,
-               habitual_sleep_need = habitual_sleep_need / ms_in_hour,
-               time_in_bed = time_in_bed / ms_in_hour,
-               light_sleep_duration = light_sleep_duration / ms_in_hour,
-               slow_wave_sleep_duration = slow_wave_sleep_duration / ms_in_hour,
-               rem_sleep_duration = rem_sleep_duration / ms_in_hour,
-               wake_duration = wake_duration / ms_in_hour,
-               arousal_time = arousal_time / ms_in_hour,
-               credit_from_naps = credit_from_naps / ms_in_hour,
-               projected_sleep = projected_sleep / ms_in_hour,
-               total_sleep = credit_from_naps + quality_duration,
-               date = as_date(sleep_end),
-               dotw = weekdays(date, abbreviate = TRUE)) %>% 
-        select(date,
-               dotw,
-               sleep_start,
-               sleep_end,
-               score, 
-               total_sleep,
-               quality_duration,
-               latency,
-               debt_pre,
-               debt_post,
-               need_from_strain,
-               sleep_need,
-               habitual_sleep_need,
-               disturbances,
-               time_in_bed,
-               light_sleep_duration,
-               slow_wave_sleep_duration,
-               rem_sleep_duration,
-               cycles_count,
-               wake_duration,
-               arousal_time,
-               in_sleep_efficiency,
-               credit_from_naps,
-               respiratory_rate,
-               sleep_consistency) 
-}
 ```
 
 Today
@@ -369,75 +77,11 @@ Column {data-width=650 .tabset}
 
 ```{r, out.width = "80%", fig.height = 1, fig.retina = 6, fig.align = 'center'}
 # If today's workout(s) has not happened yet, add it into the graph to show the expected
+expected_strain <- get_expected_strain_data(todays_wo)
 
-# If there are two events in today's plan
-if (grepl("\\+", todays_wo)) {
-    todays_wo <- unlist(str_split(todays_wo, " \\+ "))
-}
+plot_data <- get_todays_strain_plot_data(expected_strain)
 
-expected_strain <- 0
-
-# Have you done those workouts yet? 
-for (two in todays_wo) {
-    
-    if (two %in% todays_workouts$name) {
-        next
-    } 
-    
-    expected_strain <- expected_strain + avg_workout$avg_intensity_score[avg_workout$name == two]
-}
-
-plot_data <- cycles_plot %>% 
-    head(1)  %>% 
-    select(day_start,
-           day_strain, 
-           avg_strain, 
-           dotw)%>% 
-    mutate(additional_strain = expected_strain + day_strain)
-
-
-ggplot(plot_data, aes(x = day_start)) +
-    geom_bar(aes(y = additional_strain), 
-             stat = "identity", 
-             fill = "#00A3E1", 
-             alpha = 0.25, width = 0.8) + 
-    geom_bar(aes(y = day_strain), stat = "identity", fill = "#00A3E1") + 
-    geom_errorbar(aes(ymin = avg_strain, ymax = avg_strain)) +
-    geom_text(aes(label = paste0("Currently ", 
-                                 percent(1 - ((avg_strain - day_strain) / 
-                                                  avg_strain), 
-                                         accuracy = 0.01), 
-                                 " of the average strain."),
-                  y = ifelse(avg_strain > additional_strain, 
-                             avg_strain / 2, 
-                             additional_strain / 2)),
-              size = 1.5) +
-    geom_text(aes(label = paste0("Current strain: ", 
-                                 round(day_strain, 2)), 
-                  y = day_strain - 0.05),
-              hjust = 1, 
-              nudge_x = 0.25,
-              size = 1.5) +
-    geom_text(aes(label = paste0("Average strain for ", dotw, "s: ", 
-                                 round(avg_strain, 2)),
-                  y = avg_strain - 0.05),
-              hjust = 1,
-              nudge_x = -0.25,
-              size = 1.5) +
-    geom_text(aes(label = paste0("Expected additional strain: ", 
-                                 round(additional_strain - day_strain, 2)), 
-                  y = additional_strain - 0.05),
-              hjust = 1, 
-              nudge_x = 0.35,
-              size = 1.5) +
-    coord_flip() +
-    theme(panel.background = element_blank(),
-          axis.title = element_blank(),
-          axis.ticks = element_blank(),
-          axis.text = element_text(size = 5),
-          panel.grid.major.x = element_line(color = "light gray"),
-          panel.grid.major.y = element_blank(), 
-          plot.background = element_rect(color = "black", fill = NA))
+plot_todays_strain(plot_data)
 ```
 
 ### Today's Calendar
@@ -445,11 +89,7 @@ ggplot(plot_data, aes(x = day_start)) +
 Here are the events for today. 
 
 ```{r}
-kbl(events) %>%
-    kable_styling(bootstrap_options = c("striped", 
-                                        "hover", 
-                                        "condensed", 
-                                        "responsive"))
+present_table(events)
 ```
 
 ### Workout Schedule
@@ -457,11 +97,7 @@ kbl(events) %>%
 This will be the workout schedule for the week.
 
 ```{r}
-kbl(wo) %>%
-    kable_styling(bootstrap_options = c("striped", 
-                                        "hover", 
-                                        "condensed", 
-                                        "responsive"))
+present_table(wo)
 ```
 
 
@@ -475,79 +111,11 @@ Column {data-width=650 .tabset}
 ### Day Strain
 
 ```{r, out.width = "100%", fig.retina = 6}
-strain <- ggplot(cycles_plot, aes(x = day_start)) +
-    geom_bar(aes(y = day_strain), 
-             stat = "identity",
-             fill = "#00A3E1") + 
-    geom_errorbar(aes(ymin = avg_strain, ymax = avg_strain)) + 
-    geom_text(aes(label = dotw, y = 1),
-              size = lit_label_size) + 
-    geom_text(aes(label = percent((day_strain - avg_strain) / avg_strain, 
-                                  accuracy = 0.01), 
-                  y = day_strain - 0.25),
-              size = lit_label_size) +
-    ggtitle("Daily Strain vs. Average") + 
-    geom_text(aes(label = round(avg_strain, 2), y = avg_strain + 0.25),
-              size = lit_label_size) + 
-    geom_text(aes(label = round(day_strain, 2), y = day_strain + 0.25),
-              size = lit_label_size) + 
-    theme(panel.background = element_blank(),
-          axis.title = element_blank(),
-          axis.ticks = element_blank(),
-          axis.text = element_text(size = 5),
-          title = element_text(size = title_size),
-          panel.grid.major.y = element_line(color = "light gray"),
-          panel.grid.major.x = element_blank())
+strain <- strain_bar(cycles_plot, "day_strain", "avg_strain", "Daily Strain")
 
-kj <- ggplot(cycles_plot, aes(x = day_start)) +
-    geom_bar(aes(y = day_kilojoules), 
-             stat = "identity",
-             fill = "#00A3E1") + 
-    geom_errorbar(aes(ymin = avg_kj, ymax = avg_kj)) + 
-    geom_text(aes(label = dotw, y = 500),
-              size = lit_label_size) + 
-    geom_text(aes(label = percent((day_kilojoules - avg_kj) / avg_kj, 
-                                  accuracy = 1), 
-                  y = day_kilojoules - 300),
-              size = lit_label_size) +
-    ggtitle("Daily KJ vs. Average") + 
-    geom_text(aes(label = comma(avg_kj), y = avg_kj + 300),
-              size = lit_label_size) + 
-    geom_text(aes(label = comma(day_kilojoules), y = day_kilojoules + 300),
-              size = lit_label_size) + 
-    scale_y_continuous(labels = comma_format()) + 
-    theme(panel.background = element_blank(),
-          axis.title = element_blank(),
-          axis.ticks = element_blank(),
-          axis.text = element_text(size = 5),
-          title = element_text(size = title_size),
-          panel.grid.major.y = element_line(color = "light gray"),
-          panel.grid.major.x = element_blank())
+kj <- strain_bar(cycles_plot, "day_kilojoules", "avg_kj", "Daily KJ")
 
-cal <- ggplot(cycles_plot, aes(x = day_start)) +
-    geom_bar(aes(y = day_cal), 
-             stat = "identity",
-             fill = "#00A3E1") + 
-    geom_errorbar(aes(ymin = avg_cal, ymax = avg_cal)) + 
-    geom_text(aes(label = dotw, y = 100),
-              size = lit_label_size) + 
-    geom_text(aes(label = percent((day_cal - avg_cal) / avg_cal, 
-                                  accuracy = 1), 
-                  y = day_cal - 75),
-              size = lit_label_size) +
-    ggtitle("Daily Calories vs. Average") + 
-    geom_text(aes(label = comma(avg_cal), y = avg_cal + 75),
-              size = lit_label_size) + 
-    geom_text(aes(label = comma(day_cal), y = day_cal + 75),
-              size = lit_label_size) + 
-    scale_y_continuous(labels = comma_format()) + 
-    theme(panel.background = element_blank(),
-          axis.title = element_blank(),
-          axis.ticks = element_blank(),
-          axis.text = element_text(size = 5),
-          title = element_text(size = title_size),
-          panel.grid.major.y = element_line(color = "light gray"),
-          panel.grid.major.x = element_blank())
+cal <- strain_bar(cycles_plot, "day_cal", "avg_cal", "Daily KJ")
 
 grid.arrange(strain, kj, cal, ncol = 1)
 ```
@@ -556,128 +124,16 @@ grid.arrange(strain, kj, cal, ncol = 1)
 
 ```{r, fig.retina = 6}
 # resting_heart_rate
-range_lower <- min(recovery$resting_heart_rate[1:10]) - 
-    ((max(recovery$resting_heart_rate[1:10]) - 
-          min(recovery$resting_heart_rate[1:10])) / 6)
-range_upper <- max(recovery$resting_heart_rate[1:10]) + 
-    ((max(recovery$resting_heart_rate[1:10]) - 
-          min(recovery$resting_heart_rate[1:10])) / 6)
-
-rhr <- ggplot(recovery[1:10, ], aes(x = date, y = resting_heart_rate)) + 
-    geom_line(color = "#00A3E1") + 
-    geom_hline(yintercept = mean_rhr) + 
-    geom_text(aes(label = dotw, y = min(resting_heart_rate) - 2),
-              size = lit_label_size) + 
-    geom_text(label = paste0("30 day avg. rhr: ", round(mean_rhr, 2)),
-              y = mean_rhr + 0.75,
-              x = min(recovery$date[1:10]) - days(1),
-              hjust = 0,
-              size = lit_label_size) +
-    ggtitle("Resting Heart Rate") + 
-    scale_y_continuous(limits = c(range_lower, range_upper)) + 
-    scale_x_date(limits = c(min(recovery$date[1:10]) - days(1), 
-                            max(recovery$date[1:10]) + days(1))) + 
-    geom_text(aes(label = resting_heart_rate, y = resting_heart_rate + 0.75),
-              size = lit_label_size) + 
-    theme(panel.background = element_blank(),
-          axis.title = element_blank(),
-          axis.ticks = element_blank(),
-          panel.grid.major.y = element_line(color = "light gray"),
-          panel.grid.major.x = element_blank())
+rhr <- line_plot(recovery, "resting_heart_rate", "date")
 
 # hrv_rmssd
-range_lower <- min(recovery$hrv_rmssd[1:10]) - 
-    ((max(recovery$hrv_rmssd[1:10]) - 
-          min(recovery$hrv_rmssd[1:10])) / 6)
-range_upper <- max(recovery$hrv_rmssd[1:10]) + 
-    ((max(recovery$hrv_rmssd[1:10]) - 
-          min(recovery$hrv_rmssd[1:10])) / 6)
-
-hrv <- ggplot(recovery[1:10, ], aes(x = date, y = hrv_rmssd)) + 
-    geom_line(color = "#00A3E1") + 
-    geom_hline(yintercept = mean_hrv) + 
-    geom_text(aes(label = dotw, y = min(hrv_rmssd) - 6),
-              size = lit_label_size) + 
-    geom_text(label = paste0("30 day avg. hrv: ", round(mean_hrv, 2)), 
-              y = mean_hrv - 3,
-              x = min(recovery$date[1:10]) - days(1),
-              hjust = 0,
-              size = lit_label_size) +
-    ggtitle("Heart Rate Variability") + 
-    scale_y_continuous(limits = c(range_lower, range_upper)) + 
-    scale_x_date(limits = c(min(recovery$date[1:10]) - days(1), 
-                            max(recovery$date[1:10]) + days(1))) + 
-    geom_text(aes(label = round(hrv_rmssd, 2), y = hrv_rmssd + 2),
-              size = lit_label_size) + 
-    theme(panel.background = element_blank(),
-          axis.title = element_blank(),
-          axis.ticks = element_blank(),
-          panel.grid.major.y = element_line(color = "light gray"),
-          panel.grid.major.x = element_blank())
+hrv <- line_plot(recovery, "hrv_rmssd", "date")
 
 # skin_temp_celsius
-range_lower <- min(recovery$skin_temp_f[1:10]) - 
-    ((max(recovery$skin_temp_f[1:10]) - 
-          min(recovery$skin_temp_f[1:10])) / 6)
-range_upper <- max(recovery$skin_temp_f[1:10]) + 
-    ((max(recovery$skin_temp_f[1:10]) - 
-          min(recovery$skin_temp_f[1:10])) / 6)
-
-temp <- ggplot(recovery[1:10, ], aes(x = date, y = skin_temp_f)) + 
-    geom_line(color = "#00A3E1") + 
-    geom_hline(yintercept = mean_st) + 
-    geom_text(aes(label = dotw, y = min(skin_temp_f) - 0.2),
-              size = lit_label_size) +
-    scale_y_continuous(limits = c(range_lower, range_upper)) + 
-    geom_text(label = paste0("30 day avg. skin temp: ", round(mean_st, 2)), 
-              y = mean_st + 0.15,
-              x = min(recovery$date[1:10]) - days(1),
-              hjust = 0,
-              size = lit_label_size) +
-    ggtitle("Skin Temp (F)") + 
-    scale_x_date(limits = c(min(recovery$date[1:10]) - days(1), 
-                            max(recovery$date[1:10]) + days(1))) + 
-    geom_text(aes(label = round(skin_temp_f, 2), 
-                  y = skin_temp_f + 0.075),
-              size = lit_label_size) + 
-    theme(panel.background = element_blank(),
-          axis.title = element_blank(),
-          axis.ticks = element_blank(),
-          panel.grid.major.y = element_line(color = "light gray"),
-          panel.grid.major.x = element_blank())
+temp <- line_plot(recovery, "skin_temp_f", "date")
 
 # spo2
-range_lower <- min(recovery$spo2[1:10]) - 
-    ((max(recovery$spo2[1:10]) - 
-          min(recovery$spo2[1:10])) / 6)
-range_upper <- max(recovery$spo2[1:10]) + 
-    ((max(recovery$spo2[1:10]) - 
-          min(recovery$spo2[1:10])) / 6)
-
-spo2 <- ggplot(recovery[1:10, ], aes(x = date, y = spo2)) + 
-    geom_line(color = "#00A3E1") + 
-    geom_hline(yintercept = mean_spo2) + 
-    geom_text(aes(label = dotw, y = min(spo2) - 0.003),
-              size = lit_label_size) +
-    scale_y_continuous(limits = c(range_lower, range_upper),
-                       labels = percent_format()) + 
-    geom_text(label = paste0("30 day avg. spo2: ", percent(mean_spo2, 
-                                                           accuracy = 0.01)), 
-              y = mean_spo2 + 0.001,
-              x = min(recovery$date[1:10]) - days(1),
-              hjust = 0,
-              size = lit_label_size) +
-    ggtitle("SPO2") + 
-    scale_x_date(limits = c(min(recovery$date[1:10]) - days(1), 
-                            max(recovery$date[1:10]) + days(1))) + 
-    geom_text(aes(label = percent(spo2, accuracy = 0.01), 
-                  y = spo2 + 0.0015),
-              size = lit_label_size) + 
-    theme(panel.background = element_blank(),
-          axis.title = element_blank(),
-          axis.ticks = element_blank(),
-          panel.grid.major.y = element_line(color = "light gray"),
-          panel.grid.major.x = element_blank())
+spo2 <- line_plot(recovery, "spo2", "date")
 
 grid.arrange(rhr, hrv, temp, spo2, nrow = 2)
 ```
@@ -685,37 +141,11 @@ grid.arrange(rhr, hrv, temp, spo2, nrow = 2)
 ### Sleep
 
 ```{r}
-get_sleep_data() %>% 
-    head(10) %>% 
-    select(date,
-           dotw,
-           wake_duration,
-           light_sleep_duration,
-           slow_wave_sleep_duration,
-           rem_sleep_duration,
-           credit_from_naps) %>% 
-    rename(Awake = wake_duration,
-           Light = light_sleep_duration,
-           SWS = slow_wave_sleep_duration,
-           REM = rem_sleep_duration,
-           Naps = credit_from_naps) %>% 
-    pivot_longer(!c(date, dotw), names_to = "category", values_to = "hours") %>% 
-    ggplot(aes(x = date, y = hours, fill = category, group = category)) +
-        geom_area(stat = "identity", 
-                  position = "fill", 
-                  alpha = 0.75,
-                  color = "navy") + 
-        scale_fill_brewer(palette = "Blues") + 
-        scale_y_continuous(labels = percent_format()) +
-        geom_text(aes(label = dotw, y = 0.05),
-                  size = label_size) +
-        theme(panel.background = element_blank(),
-              axis.title = element_blank(),
-              axis.ticks = element_blank(),
-              panel.grid.major.y = element_line(color = "light gray"),
-              panel.grid.major.x = element_blank(),
-              legend.title = element_blank(),
-              legend.position = "top")
+sleep_area <- sleep_area_plot(sleep)
+
+rr <- line_plot(sleep, "respiratory_rate", "date")
+
+grid.arrange(sleep_area, rr, ncol = 1)
 ```
 
 

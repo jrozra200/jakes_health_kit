@@ -1,0 +1,208 @@
+## HK PLOT FUNCTIONS
+
+# UNIVERSAL VARIABLES
+LABEL_SIZE <- 2.75
+TITLE_SIZE <- 8
+AXIS_SIZE <- 5
+LIT_LABEL_SIZE <- 1.75
+MAIN_HEX <- "#00A3E1"
+
+# CREATE LINE PLOTS
+line_plot <- function(data, yvar, date_var) {
+    # Calculate the ranges for the plot
+    range_data <- data %>% 
+        head(10) %>%
+        summarise(minimum = min(get(yvar)),
+                  maximum = max(get(yvar)),
+                  average = mean(get(yvar))) %>% 
+        mutate(ll = minimum - ((maximum - minimum) / 6),
+               ul = maximum + ((maximum - minimum) / 6),
+               label_pos = minimum - ((maximum - minimum) / 12),
+               label_bump = (maximum - minimum) * 0.05)
+    
+    # Get the 30 day mean
+    mean_var <- data %>% 
+        slice(2:31) %>% 
+        pull(get(yvar)) %>% 
+        mean()
+    
+    # Get the first date
+    min_date <- data %>% 
+        head(10) %>% 
+        pull(get(date_var)) %>% 
+        min()
+    
+    # Get the last date
+    max_date <- data %>% 
+        head(10) %>% 
+        pull(get(date_var)) %>% 
+        max()
+    
+    point_labels <- data %>% 
+        head(10) %>% 
+        mutate(labels_perc = percent(get(yvar), accuracy = 0.01),
+               labels_com = comma(get(yvar), accuracy = 0.01))
+    
+    if(mean_var < 1) {
+        point_labels <- point_labels %>% 
+            pull(labels_perc)
+    } else {
+        point_labels <- point_labels %>% 
+            pull(labels_com)
+    }
+    
+    plot <- ggplot(data[1:10, ], aes(x = date, y = get(yvar))) + 
+        # Add a line for the yvar
+        geom_line(color = MAIN_HEX) + 
+        # Add a label for the yvar
+        geom_text(aes(label = point_labels, 
+                      y = get(yvar) + range_data$label_bump[1]),
+                  size = LIT_LABEL_SIZE,
+                  check_overlap = TRUE) + 
+        # Add a horizontal line for the mean yvar (30 days)
+        geom_hline(yintercept = mean_var) + 
+        # Add a label for the 30 day average 
+        geom_text(label = paste0("30 day avg. ", yvar, ": ", 
+                                 ifelse(mean_var < 1, 
+                                        percent(mean_var, accuracy = 0.01),
+                                        comma(mean_var))), 
+                  y = mean_var + range_data$label_bump[1],
+                  x = min_date - days(1),
+                  hjust = 0,
+                  size = LIT_LABEL_SIZE) +
+        # Add the day of the week to the bottom
+        geom_text(aes(label = dotw, y = range_data$label_pos[1]),
+                  size = LIT_LABEL_SIZE) +
+        # Make sure the plot is scaled properly (y-axis)
+        scale_y_continuous(limits = c(range_data$ll[1], range_data$ul[1]),
+                           labels = ifelse(mean_var < 1,
+                                           percent_format(),
+                                           comma_format())) + 
+        # Add a day to the front and back of the plot (x-axis)
+        scale_x_date(limits = c(min_date - days(1), 
+                                max_date + days(1))) + 
+        # Add the title
+        ggtitle(yvar) + 
+        # Format this shit to look good
+        theme(panel.background = element_blank(),
+              axis.title = element_blank(),
+              axis.ticks = element_blank(),
+              panel.grid.major.y = element_line(color = "light gray"),
+              panel.grid.major.x = element_blank(),
+              axis.text.y = element_blank(),
+              axis.text.x = element_text(size = AXIS_SIZE),
+              title = element_text(size = TITLE_SIZE))
+    
+    return(plot)
+}
+
+plot_todays_strain <- function(plot_data) {
+    ggplot(plot_data, aes(x = day_start)) +
+        geom_bar(aes(y = additional_strain), 
+                 stat = "identity", 
+                 fill = MAIN_HEX, 
+                 alpha = 0.25, width = 0.8) + 
+        geom_bar(aes(y = day_strain), stat = "identity", fill = MAIN_HEX) + 
+        geom_errorbar(aes(ymin = avg_strain, ymax = avg_strain)) +
+        geom_text(aes(label = paste0("Currently ", 
+                                     percent(1 - ((avg_strain - day_strain) / 
+                                                      avg_strain), 
+                                             accuracy = 0.01), 
+                                     " of the average strain."),
+                      y = ifelse(avg_strain > additional_strain, 
+                                 avg_strain / 2, 
+                                 additional_strain / 2)),
+                  size = 1.5) +
+        geom_text(aes(label = paste0("Current strain: ", 
+                                     round(day_strain, 2)), 
+                      y = day_strain - 0.05),
+                  hjust = 1, 
+                  nudge_x = 0.25,
+                  size = 1.5) +
+        geom_text(aes(label = paste0("Average strain for ", dotw, "s: ", 
+                                     round(avg_strain, 2)),
+                      y = avg_strain - 0.05),
+                  hjust = 1,
+                  nudge_x = -0.25,
+                  size = 1.5) +
+        geom_text(aes(label = paste0("Expected additional strain: ", 
+                                     round(additional_strain - day_strain, 2)), 
+                      y = additional_strain - 0.05),
+                  hjust = 1, 
+                  nudge_x = 0.35,
+                  size = 1.5) +
+        coord_flip() +
+        theme(panel.background = element_blank(),
+              axis.title = element_blank(),
+              axis.ticks = element_blank(),
+              axis.text = element_text(size = 5),
+              panel.grid.major.x = element_line(color = "light gray"),
+              panel.grid.major.y = element_blank(), 
+              plot.background = element_rect(color = "black", fill = NA))
+}
+
+
+strain_bar <- function(dat, var, avg_var, title) {
+    plot <- ggplot(dat, aes(x = day_start)) +
+        geom_bar(aes(y = get(var)), 
+                 stat = "identity",
+                 fill = MAIN_HEX) + 
+        geom_errorbar(aes(ymin = get(avg_var), ymax = get(avg_var))) + 
+        geom_text(aes(label = dotw, y = 1),
+                  size = LIT_LABEL_SIZE) + 
+        geom_text(aes(label = percent((get(var) - get(avg_var)) / get(avg_var), 
+                                      accuracy = 0.01), 
+                      y = get(var) - 0.25),
+                  size = LIT_LABEL_SIZE) +
+        ggtitle(paste0(title, " vs. Average")) + 
+        geom_text(aes(label = round(get(avg_var), 2), y = get(avg_var) + 0.25),
+                  size = LIT_LABEL_SIZE) + 
+        geom_text(aes(label = round(get(var), 2), y = get(var) + 0.25),
+                  size = LIT_LABEL_SIZE) + 
+        theme(panel.background = element_blank(),
+              axis.title = element_blank(),
+              axis.ticks = element_blank(),
+              axis.text = element_text(size = AXIS_SIZE),
+              title = element_text(size = TITLE_SIZE),
+              panel.grid.major.y = element_line(color = "light gray"),
+              panel.grid.major.x = element_blank())
+    
+    return(plot)
+}
+
+sleep_area_plot <- function(sleep) {
+    plot <- sleep %>% 
+        head(10) %>% 
+        select(date,
+               dotw,
+               wake_duration,
+               light_sleep_duration,
+               slow_wave_sleep_duration,
+               rem_sleep_duration,
+               credit_from_naps) %>% 
+        rename(Awake = wake_duration,
+               Light = light_sleep_duration,
+               SWS = slow_wave_sleep_duration,
+               REM = rem_sleep_duration,
+               Naps = credit_from_naps) %>% 
+        pivot_longer(!c(date, dotw), names_to = "category", values_to = "hours") %>% 
+        ggplot(aes(x = date, y = hours, fill = category, group = category)) +
+        geom_area(stat = "identity", 
+                  position = "fill", 
+                  alpha = 0.75,
+                  color = "navy") + 
+        scale_fill_brewer(palette = "Blues") + 
+        scale_y_continuous(labels = percent_format()) +
+        geom_text(aes(label = dotw, y = 0.05),
+                  size = LABEL_SIZE) +
+        theme(panel.background = element_blank(),
+              axis.title = element_blank(),
+              axis.ticks = element_blank(),
+              panel.grid.major.y = element_line(color = "light gray"),
+              panel.grid.major.x = element_blank(),
+              legend.title = element_blank(),
+              legend.position = "top")
+    
+    return(plot)
+}
+
