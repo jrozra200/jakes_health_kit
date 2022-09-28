@@ -236,17 +236,37 @@ get_cycles_data <- function() {
 
 get_cycles_plot_data <- function(cycles) {    
     cycles_sum <- cycles %>% 
-        filter(day_start < Sys.Date()) %>% 
-        group_by(dotw) %>% 
-        slice_head(n = 10) %>% 
-        summarise(avg_strain = mean(day_strain),
-                  avg_score = mean(scaled_strain),
-                  avg_kj = mean(day_kilojoules),
-                  avg_cal = mean(day_cal))
+        group_by(dotw)  %>% 
+        summarise(avg_strain = rollmean(day_strain, 
+                                        10, 
+                                        align = "left", 
+                                        fill = NA, 
+                                        na.rm = TRUE),
+                  avg_score = rollmean(scaled_strain,
+                                       10, 
+                                       align = "left", 
+                                       fill = NA, 
+                                       na.rm = TRUE),
+                  avg_kj = rollmean(day_kilojoules,
+                                    10, 
+                                    align = "left", 
+                                    fill = NA, 
+                                    na.rm = TRUE),
+                  avg_cal = rollmean(day_cal,
+                                     10, 
+                                     align = "left", 
+                                     fill = NA, 
+                                     na.rm = TRUE),
+                  date = rollmax(day_start, 
+                                 10, 
+                                 align = "left", 
+                                 fill = NA, 
+                                 na.rm = TRUE)) 
     
     cycles_plot <- cycles %>%
         head(10) %>% 
-        left_join(cycles_sum, by = "dotw") %>% 
+        left_join(cycles_sum, by = c("dotw" = "dotw", 
+                                     "day_start" = "date")) %>% 
         select(day_start, 
                day_strain,
                scaled_strain,

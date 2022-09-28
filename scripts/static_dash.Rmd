@@ -100,9 +100,7 @@ This will be the workout schedule for the week.
 present_table(wo)
 ```
 
-
-
-Whoop Data 
+Health Data 
 =====================================
 
 Row {.tabset .tabset-fade}
