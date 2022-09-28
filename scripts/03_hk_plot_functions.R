@@ -2,13 +2,14 @@
 
 # UNIVERSAL VARIABLES
 LABEL_SIZE <- 2.75
+LEGEND_SIZE <- 4
 TITLE_SIZE <- 8
 AXIS_SIZE <- 5
 LIT_LABEL_SIZE <- 1.75
 MAIN_HEX <- "#00A3E1"
 
 # CREATE LINE PLOTS
-line_plot <- function(data, yvar, date_var) {
+line_plot <- function(data, yvar, date_var, title) {
     # Calculate the ranges for the plot
     range_data <- data %>% 
         head(10) %>%
@@ -62,7 +63,7 @@ line_plot <- function(data, yvar, date_var) {
         # Add a horizontal line for the mean yvar (30 days)
         geom_hline(yintercept = mean_var) + 
         # Add a label for the 30 day average 
-        geom_text(label = paste0("30 day avg. ", yvar, ": ", 
+        geom_text(label = paste0("30 day avg. ", title, ": ", 
                                  ifelse(mean_var < 1, 
                                         percent(mean_var, accuracy = 0.01),
                                         comma(mean_var))), 
@@ -82,7 +83,7 @@ line_plot <- function(data, yvar, date_var) {
         scale_x_date(limits = c(min_date - days(1), 
                                 max_date + days(1))) + 
         # Add the title
-        ggtitle(yvar) + 
+        ggtitle(title) + 
         # Format this shit to look good
         theme(panel.background = element_blank(),
               axis.title = element_blank(),
@@ -143,22 +144,39 @@ plot_todays_strain <- function(plot_data) {
 
 
 strain_bar <- function(dat, var, avg_var, title) {
+    max_data <- dat %>% 
+        pull(get(var)) %>% 
+        max()
+    label_bump <- max_data * 0.025
+    
     plot <- ggplot(dat, aes(x = day_start)) +
+        # Add a bar for the variable of concern
         geom_bar(aes(y = get(var)), 
                  stat = "identity",
                  fill = MAIN_HEX) + 
-        geom_errorbar(aes(ymin = get(avg_var), ymax = get(avg_var))) + 
-        geom_text(aes(label = dotw, y = 1),
+        # Add a label for the variable's output
+        geom_text(aes(label = comma(get(var), accuracy = 0.01), 
+                      y = get(var) + label_bump),
                   size = LIT_LABEL_SIZE) + 
+        # Add a line for the average for this day
+        geom_errorbar(aes(ymin = get(avg_var), ymax = get(avg_var))) + 
+        # Add a label for the average
+        geom_text(aes(label = comma(get(avg_var), accuracy = 0.01), 
+                      y = get(avg_var) + label_bump),
+                  size = LIT_LABEL_SIZE) + 
+        # Add the day of the week on the bottom
+        geom_text(aes(label = dotw, y = label_bump),
+                  size = LIT_LABEL_SIZE) + 
+        # Add a label for the percentage of average I've done
         geom_text(aes(label = percent((get(var) - get(avg_var)) / get(avg_var), 
                                       accuracy = 0.01), 
-                      y = get(var) - 0.25),
+                      y = get(var) - label_bump),
                   size = LIT_LABEL_SIZE) +
+        # Add a title
         ggtitle(paste0(title, " vs. Average")) + 
-        geom_text(aes(label = round(get(avg_var), 2), y = get(avg_var) + 0.25),
-                  size = LIT_LABEL_SIZE) + 
-        geom_text(aes(label = round(get(var), 2), y = get(var) + 0.25),
-                  size = LIT_LABEL_SIZE) + 
+        # Add commas to the labels
+        scale_y_continuous(labels = comma_format()) + 
+        # Theme the shit
         theme(panel.background = element_blank(),
               axis.title = element_blank(),
               axis.ticks = element_blank(),
@@ -190,14 +208,16 @@ sleep_area_plot <- function(sleep) {
         geom_area(stat = "identity", 
                   position = "fill", 
                   alpha = 0.75,
-                  color = "navy") + 
+                  color = MAIN_HEX) + 
         scale_fill_brewer(palette = "Blues") + 
         scale_y_continuous(labels = percent_format()) +
         geom_text(aes(label = dotw, y = 0.05),
-                  size = LABEL_SIZE) +
+                  size = LIT_LABEL_SIZE) +
         theme(panel.background = element_blank(),
               axis.title = element_blank(),
               axis.ticks = element_blank(),
+              axis.text = element_text(size = AXIS_SIZE),
+              legend.text = element_text(size = LEGEND_SIZE),
               panel.grid.major.y = element_line(color = "light gray"),
               panel.grid.major.x = element_blank(),
               legend.title = element_blank(),
@@ -206,3 +226,24 @@ sleep_area_plot <- function(sleep) {
     return(plot)
 }
 
+plot_trendz <- function(plot_dat) {
+    ggplot(plot_dat, 
+           aes(x = date, 
+               y = values, 
+               color = length, 
+               group = length, 
+               alpha = alpha)) +
+        geom_line() + 
+        facet_wrap(~ measure, ncol = 1) + 
+        scale_alpha(guide = "none") + 
+        theme(legend.position = "top",
+              legend.title = element_blank(),
+              legend.key = element_blank(),
+              panel.background = element_blank(),
+              axis.title = element_blank(),
+              axis.ticks = element_blank(),
+              panel.grid.major.y = element_line(color = "light gray"),
+              panel.grid.major.x = element_blank(),
+              axis.text.y = element_blank(),
+              strip.background = element_blank())
+}

@@ -4,7 +4,7 @@ output:
   flexdashboard::flex_dashboard:
     theme:
       bootswatch: cosmo
-    orientation: columns
+    orientation: rows
     vertical_layout: fill
 ---
 
@@ -66,7 +66,7 @@ sleep <- get_sleep_data()
 Today
 =====================================
 
-Column {data-width=650 .tabset}
+Row {.tabset .tabset-fade}
 -----------------------------------------------------------------------
 
 ### Today
@@ -105,7 +105,7 @@ present_table(wo)
 Whoop Data 
 =====================================
 
-Column {data-width=650 .tabset}
+Row {.tabset .tabset-fade}
 -----------------------------------------------------------------------
 
 ### Day Strain
@@ -113,27 +113,25 @@ Column {data-width=650 .tabset}
 ```{r, out.width = "100%", fig.retina = 6}
 strain <- strain_bar(cycles_plot, "day_strain", "avg_strain", "Daily Strain")
 
-kj <- strain_bar(cycles_plot, "day_kilojoules", "avg_kj", "Daily KJ")
+cal <- strain_bar(cycles_plot, "day_cal", "avg_cal", "Daily Calories")
 
-cal <- strain_bar(cycles_plot, "day_cal", "avg_cal", "Daily KJ")
-
-grid.arrange(strain, kj, cal, ncol = 1)
+grid.arrange(strain, cal, ncol = 1)
 ```
 
 ### Recovery
 
 ```{r, fig.retina = 6}
 # resting_heart_rate
-rhr <- line_plot(recovery, "resting_heart_rate", "date")
+rhr <- line_plot(recovery, "resting_heart_rate", "date", "Resting Heart Rate")
 
 # hrv_rmssd
-hrv <- line_plot(recovery, "hrv_rmssd", "date")
+hrv <- line_plot(recovery, "hrv_rmssd", "date", "Heart Rate Variability")
 
 # skin_temp_celsius
-temp <- line_plot(recovery, "skin_temp_f", "date")
+temp <- line_plot(recovery, "skin_temp_f", "date", "Skin Temp")
 
 # spo2
-spo2 <- line_plot(recovery, "spo2", "date")
+spo2 <- line_plot(recovery, "spo2", "date", "SpO2")
 
 grid.arrange(rhr, hrv, temp, spo2, nrow = 2)
 ```
@@ -143,7 +141,7 @@ grid.arrange(rhr, hrv, temp, spo2, nrow = 2)
 ```{r}
 sleep_area <- sleep_area_plot(sleep)
 
-rr <- line_plot(sleep, "respiratory_rate", "date")
+rr <- line_plot(sleep, "respiratory_rate", "date", "Respiratory Rate")
 
 grid.arrange(sleep_area, rr, ncol = 1)
 ```
@@ -152,190 +150,40 @@ grid.arrange(sleep_area, rr, ncol = 1)
 Health Trend Data 
 =====================================
 
-Column {data-width=650 .tabset}
+Row {.tabset .tabset-fade}
 -----------------------------------------------------------------------
 
 ### Strain Trends
 
 ```{r, out.width = "100%", fig.retina = 6}
-strain_trends <- cycles %>% 
-    filter(day_start < Sys.Date()) %>% 
-    mutate(strain_7d = rollmean(day_strain * 1000, 7, align = "left", fill = NA, na.rm = TRUE),
-           cal_7d = rollmean(day_cal, 7, align = "left", fill = NA, na.rm = TRUE),
-           strain_7d_nm = ((strain_7d - min(strain_7d, na.rm = TRUE)) / 
-                             (max(strain_7d, na.rm = TRUE) - min(strain_7d, na.rm = TRUE))),
-           cal_7d_nm = ((cal_7d - min(cal_7d, na.rm = TRUE)) / 
-                             (max(cal_7d, na.rm = TRUE) - min(cal_7d, na.rm = TRUE)))) %>% 
-    select(day_start, 
-           dotw,
-           day_strain, 
-           day_cal, 
-           strain_7d,
-           cal_7d,
-           strain_7d_nm,
-           cal_7d_nm)
+plot_dat <- get_recovery_trendz_data(cycles %>% 
+                                         rename(date = day_start), 
+                                     c("day_strain", 
+                                       "day_cal"), 
+                                     c(3, 7, 14, 30)) %>% 
+    mutate(measure = case_when(
+        measure == "day_strain_ma_nm" ~ "Strain (should be high)",
+        measure == "day_cal_ma_nm" ~ "Calories (should be high)"
+    ))
 
-
-plot_dat_7d <- strain_trends %>% 
-    select(day_start, 
-           dotw,
-           strain_7d_nm,
-           cal_7d_nm) %>% 
-    rename(`Strain (should be high)` = strain_7d_nm,
-           `Calories (should be high)` = cal_7d_nm) %>%
-    pivot_longer(!c(day_start, dotw), names_to = "measure", values_to = "values") %>% 
-    mutate(length = "7d Moving Average")
-
-strain_trends <- cycles %>% 
-    filter(day_start < Sys.Date()) %>% 
-    mutate(strain_7d = rollmean(day_strain * 1000, 30, align = "left", fill = NA, na.rm = TRUE),
-           cal_7d = rollmean(day_cal, 30, align = "left", fill = NA, na.rm = TRUE),
-           strain_7d_nm = ((strain_7d - min(strain_7d, na.rm = TRUE)) / 
-                             (max(strain_7d, na.rm = TRUE) - min(strain_7d, na.rm = TRUE))),
-           cal_7d_nm = ((cal_7d - min(cal_7d, na.rm = TRUE)) / 
-                             (max(cal_7d, na.rm = TRUE) - min(cal_7d, na.rm = TRUE)))) %>% 
-    select(day_start, 
-           dotw,
-           day_strain, 
-           day_cal, 
-           strain_7d,
-           cal_7d,
-           strain_7d_nm,
-           cal_7d_nm)
-
-plot_dat_30d <- strain_trends %>% 
-    select(day_start, 
-           dotw,
-           strain_7d_nm,
-           cal_7d_nm) %>% 
-    rename(`Strain (should be high)` = strain_7d_nm,
-           `Calories (should be high)` = cal_7d_nm) %>%
-    pivot_longer(!c(day_start, dotw), names_to = "measure", values_to = "values") %>% 
-    mutate(length = "30d Moving Average")
-
-plot_dat <- bind_rows(plot_dat_7d, plot_dat_30d)
-
-ggplot(plot_dat, aes(x = day_start, y = values, color = length, group = length)) +
-    geom_line() + 
-    facet_wrap(~ measure, ncol = 1) + 
-    theme(legend.position = "top",
-          legend.title = element_blank(),
-          legend.key = element_blank(),
-          panel.background = element_blank(),
-          axis.title = element_blank(),
-          axis.ticks = element_blank(),
-          panel.grid.major.y = element_line(color = "light gray"),
-          panel.grid.major.x = element_blank(),
-          axis.text.y = element_blank(),
-          strip.background = element_blank())
-
+plot_trendz(plot_dat)
 ```
 
 ### Recovery Trends
 
 ```{r, out.width = "100%", fig.retina = 6}
-recovery_trends <- recovery %>% 
-    filter(date < Sys.Date()) %>% 
-    mutate(spo2_7d = rollmean(spo2, 7, align = "left", fill = NA, na.rm = TRUE),
-           rhr_7d = rollmean(resting_heart_rate, 7, align = "left", fill = NA, na.rm = TRUE),
-           hrv_7d = rollmean(hrv_rmssd, 7, align = "left", fill = NA, na.rm = TRUE),
-           stf_7d = rollmean(skin_temp_f, 7, align = "left", fill = NA, na.rm = TRUE),
-           spo2_7d_nm = ((spo2_7d - min(spo2_7d, na.rm = TRUE)) / 
-                             (max(spo2_7d, na.rm = TRUE) - min(spo2_7d, na.rm = TRUE))),
-           rhr_7d_nm = ((rhr_7d - min(rhr_7d, na.rm = TRUE)) / 
-                             (max(rhr_7d, na.rm = TRUE) - min(rhr_7d, na.rm = TRUE))),
-           hrv_7d_nm = ((hrv_7d - min(hrv_7d, na.rm = TRUE)) / 
-                             (max(hrv_7d, na.rm = TRUE) - min(hrv_7d, na.rm = TRUE))),
-           stf_7d_nm = ((stf_7d - min(stf_7d, na.rm = TRUE)) / 
-                             (max(stf_7d, na.rm = TRUE) - min(stf_7d, na.rm = TRUE)))) %>% 
-    select(date, 
-           dotw,
-           spo2, 
-           resting_heart_rate, 
-           hrv_rmssd, 
-           skin_temp_f,
-           spo2_7d,
-           rhr_7d,
-           hrv_7d,
-           stf_7d,
-           spo2_7d_nm,
-           rhr_7d_nm,
-           hrv_7d_nm,
-           stf_7d_nm)
+plot_dat <- get_recovery_trendz_data(recovery, 
+                                     c("spo2", 
+                                       "resting_heart_rate", 
+                                       "hrv_rmssd", 
+                                       "skin_temp_f"), 
+                                     c(3, 7, 14, 30)) %>% 
+    mutate(measure = case_when(
+        measure == "spo2_ma_nm" ~ "SPO2 (should be high)",
+        measure == "resting_heart_rate_ma_nm" ~ "Resting Heart Rate (should be low)",
+        measure == "hrv_rmssd_ma_nm" ~ "Heart Rate Variability (should be high)",
+        measure == "skin_temp_f_ma_nm" ~ "Skin Temp (should be constant)",
+    ))
 
-
-plot_dat_7d <- recovery_trends %>% 
-    select(date, 
-           dotw,
-           spo2_7d_nm,
-           rhr_7d_nm,
-           hrv_7d_nm,
-           stf_7d_nm) %>% 
-    rename(`Heart Rate Variability (should be high)` = hrv_7d_nm,
-           `Resting Heart Rate (should be low)` = rhr_7d_nm,
-           `SPO2 (should be high)` = spo2_7d_nm,
-           `Skin Temp (should be constant)` = stf_7d_nm) %>%
-    pivot_longer(!c(date, dotw), names_to = "measure", values_to = "values") %>% 
-    mutate(length = "7d Moving Average")
-
-recovery_trends <- recovery %>% 
-    filter(date < Sys.Date()) %>% 
-    mutate(spo2_7d = rollmean(spo2, 30, align = "left", fill = NA, na.rm = TRUE),
-           rhr_7d = rollmean(resting_heart_rate, 30, align = "left", fill = NA, na.rm = TRUE),
-           hrv_7d = rollmean(hrv_rmssd, 30, align = "left", fill = NA, na.rm = TRUE),
-           stf_7d = rollmean(skin_temp_f, 30, align = "left", fill = NA, na.rm = TRUE),
-           spo2_7d_nm = ((spo2_7d - min(spo2_7d, na.rm = TRUE)) / 
-                             (max(spo2_7d, na.rm = TRUE) - min(spo2_7d, na.rm = TRUE))),
-           rhr_7d_nm = ((rhr_7d - min(rhr_7d, na.rm = TRUE)) / 
-                             (max(rhr_7d, na.rm = TRUE) - min(rhr_7d, na.rm = TRUE))),
-           hrv_7d_nm = ((hrv_7d - min(hrv_7d, na.rm = TRUE)) / 
-                             (max(hrv_7d, na.rm = TRUE) - min(hrv_7d, na.rm = TRUE))),
-           stf_7d_nm = ((stf_7d - min(stf_7d, na.rm = TRUE)) / 
-                             (max(stf_7d, na.rm = TRUE) - min(stf_7d, na.rm = TRUE)))) %>% 
-    select(date, 
-           dotw,
-           spo2, 
-           resting_heart_rate, 
-           hrv_rmssd, 
-           skin_temp_f,
-           spo2_7d,
-           rhr_7d,
-           hrv_7d,
-           stf_7d,
-           spo2_7d_nm,
-           rhr_7d_nm,
-           hrv_7d_nm,
-           stf_7d_nm)
-
-
-plot_dat_30d <- recovery_trends %>% 
-    select(date, 
-           dotw,
-           spo2_7d_nm,
-           rhr_7d_nm,
-           hrv_7d_nm,
-           stf_7d_nm) %>% 
-    rename(`Heart Rate Variability (should be high)` = hrv_7d_nm,
-           `Resting Heart Rate (should be low)` = rhr_7d_nm,
-           `SPO2 (should be high)` = spo2_7d_nm,
-           `Skin Temp (should be constant)` = stf_7d_nm) %>%
-    pivot_longer(!c(date, dotw), names_to = "measure", values_to = "values") %>% 
-    mutate(length = "30d Moving Average")
-
-plot_dat <- bind_rows(plot_dat_7d, plot_dat_30d)
-
-ggplot(plot_dat, aes(x = date, y = values, color = length, group = length)) +
-    geom_line() + 
-    facet_wrap(~ measure, ncol = 1) + 
-    theme(legend.position = "top",
-          legend.title = element_blank(),
-          legend.key = element_blank(),
-          panel.background = element_blank(),
-          axis.title = element_blank(),
-          axis.ticks = element_blank(),
-          panel.grid.major.y = element_line(color = "light gray"),
-          panel.grid.major.x = element_blank(),
-          axis.text.y = element_blank(),
-          strip.background = element_blank())
-
+plot_trendz(plot_dat)
 ```

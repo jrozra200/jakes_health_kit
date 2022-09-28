@@ -419,3 +419,62 @@ get_todays_strain_plot_data <- function(expected_strain) {
     
     return(plot_data)
 }
+
+
+get_recovery_trendz_data <- function(dat, fieldz, dayz) {
+    recovery_trends <- tibble()
+    
+    for (day in dayz) {
+        recovery_trends_day <- dat %>% 
+            filter(date < Sys.Date()) %>% 
+            select(date,
+                   dotw) %>% 
+            mutate(days = day)
+        
+        for (field in fieldz) {
+            ma_name <- paste0(field, "_ma")
+            
+            recovery_trends_tmp <- dat %>% 
+                filter(date < Sys.Date()) %>% 
+                mutate(tmp = rollmean(get(field), 
+                                      day, 
+                                      align = "left", 
+                                      fill = NA, 
+                                      na.rm = TRUE)) %>% 
+                select(as.name(field),
+                       tmp) 
+            
+            names(recovery_trends_tmp) <- c(field, ma_name)
+            
+            recovery_trends_day <- bind_cols(recovery_trends_day, 
+                                             recovery_trends_tmp)
+            recovery_trends_tmp <- NULL
+        }
+        recovery_trends <- bind_rows(recovery_trends, recovery_trends_day)
+        recovery_trends_day <- NULL
+    }
+    
+    for (field in fieldz) {
+        ma_name <- paste0(field, "_ma")
+        nm_name <- paste0(ma_name, "_nm")
+        old_names <- names(recovery_trends)
+        
+        recovery_trends <- recovery_trends %>% 
+            mutate(tmp = ((get(ma_name) - min(get(ma_name), na.rm = TRUE)) / 
+                              (max(get(ma_name), na.rm = TRUE) - 
+                                   min(get(ma_name), na.rm = TRUE))))
+        
+        names(recovery_trends) <- c(old_names, nm_name)
+    }
+    
+    plot_dat <- recovery_trends %>% 
+        select(date, 
+               dotw,
+               days,
+               ends_with("_nm")) %>% 
+        pivot_longer(!c(date, dotw, days), names_to = "measure", values_to = "values") %>% 
+        mutate(length = factor(paste0(days, "d Moving Average")),
+               alpha = (days - min(days)) / (max(days) - min(days)))
+    
+    return(plot_dat)
+}
