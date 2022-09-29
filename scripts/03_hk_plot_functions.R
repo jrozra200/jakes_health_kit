@@ -9,7 +9,12 @@ LIT_LABEL_SIZE <- 1.75
 MAIN_HEX <- "#00A3E1"
 
 # CREATE LINE PLOTS
-line_plot <- function(data, yvar, date_var, title) {
+line_plot <- function(data, 
+                      yvar, 
+                      date_var, 
+                      title, 
+                      format_style = NULL,
+                      super_little_label_size = NULL) {
     # Calculate the ranges for the plot
     range_data <- data %>% 
         head(10) %>%
@@ -44,12 +49,28 @@ line_plot <- function(data, yvar, date_var, title) {
         mutate(labels_perc = percent(get(yvar), accuracy = 0.01),
                labels_com = comma(get(yvar), accuracy = 0.01))
     
-    if(mean_var < 1) {
-        point_labels <- point_labels %>% 
-            pull(labels_perc)
+    if(is.null(format_style)) {
+        if(mean_var < 1) {
+            point_labels <- point_labels %>% 
+                pull(labels_perc)
+        } else {
+            point_labels <- point_labels %>% 
+                pull(labels_com)
+        } 
     } else {
-        point_labels <- point_labels %>% 
-            pull(labels_com)
+        if (format_style == "percent") {
+            point_labels <- point_labels %>% 
+                pull(labels_perc)
+        } else {
+            point_labels <- point_labels %>% 
+                pull(labels_com)
+        }
+    }
+    
+    if (!is.null(super_little_label_size)) {
+        LIT_LABEL_SIZE <- LIT_LABEL_SIZE - 0.5
+        AXIS_SIZE <- AXIS_SIZE - 0.5
+        TITLE_SIZE <- TITLE_SIZE - 2
     }
     
     plot <- ggplot(data[1:10, ], aes(x = date, y = get(yvar))) + 
@@ -64,9 +85,13 @@ line_plot <- function(data, yvar, date_var, title) {
         geom_hline(yintercept = mean_var) + 
         # Add a label for the 30 day average 
         geom_text(label = paste0("30 day avg. ", title, ": ", 
-                                 ifelse(mean_var < 1, 
-                                        percent(mean_var, accuracy = 0.01),
-                                        comma(mean_var))), 
+                                 ifelse(is.null(format_style), 
+                                        ifelse(mean_var < 1, 
+                                               percent(mean_var, accuracy = 0.01),
+                                               comma(mean_var)),
+                                        ifelse(format_style == "percent",
+                                               percent(mean_var, accuracy = 0.01),
+                                               comma(mean_var)))), 
                   y = mean_var + range_data$label_bump[1],
                   x = min_date - days(1),
                   hjust = 0,
@@ -226,7 +251,7 @@ sleep_area_plot <- function(sleep) {
     return(plot)
 }
 
-plot_trendz <- function(plot_dat) {
+plot_trendz <- function(plot_dat, cols = 1) {
     ggplot(plot_dat, 
            aes(x = date, 
                y = values, 
@@ -234,7 +259,7 @@ plot_trendz <- function(plot_dat) {
                group = length, 
                alpha = alpha)) +
         geom_line() + 
-        facet_wrap(~ measure, ncol = 1) + 
+        facet_wrap(~ measure, ncol = cols) + 
         scale_alpha(guide = "none") + 
         theme(legend.position = "top",
               legend.title = element_blank(),

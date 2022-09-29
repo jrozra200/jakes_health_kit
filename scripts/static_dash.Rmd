@@ -59,8 +59,6 @@ todays_workouts <- get_todays_workout_data(workouts)
 
 # GET SLEEP DATA 
 sleep <- get_sleep_data()
-
-
 ```
 
 Today
@@ -137,13 +135,103 @@ grid.arrange(rhr, hrv, temp, spo2, nrow = 2)
 ### Sleep
 
 ```{r}
+# Sleep Area 
 sleep_area <- sleep_area_plot(sleep)
 
-rr <- line_plot(sleep, "respiratory_rate", "date", "Respiratory Rate")
+# total_sleep
+total_sleep <- line_plot(sleep, 
+                         "total_sleep", 
+                         "date", 
+                         "Total Sleep",
+                         super_little_label_size = TRUE)
 
-grid.arrange(sleep_area, rr, ncol = 1)
+# latency
+latency <- line_plot(sleep, 
+                     "latency", 
+                     "date", 
+                     "Latency", 
+                     "comma",
+                     super_little_label_size = TRUE)
+
+# disturbances
+disturbances <- line_plot(sleep, 
+                          "disturbances", 
+                          "date", 
+                          "Disturbances",
+                          super_little_label_size = TRUE)
+
+# light_sleep_duration
+light_sleep_duration <- line_plot(sleep, 
+                                  "light_sleep_duration", 
+                                  "date", 
+                                  "Light Sleep Duration",
+                                  super_little_label_size = TRUE)
+
+# slow_wave_sleep_duration
+slow_wave_sleep_duration <- line_plot(sleep, 
+                                      "slow_wave_sleep_duration", 
+                                      "date", 
+                                      "Slow Wave Sleep Duration",
+                                      super_little_label_size = TRUE)
+
+# rem_sleep_duration
+rem_sleep_duration <- line_plot(sleep, 
+                                "rem_sleep_duration", 
+                                "date", 
+                                "REM Sleep Duration",
+                                "comma",
+                                super_little_label_size = TRUE)
+
+# cycles_count
+cycles_count <- line_plot(sleep, 
+                          "cycles_count", 
+                          "date", 
+                          "Cycles Count",
+                          super_little_label_size = TRUE)
+
+# wake_duration
+wake_duration <- line_plot(sleep, 
+                           "wake_duration", 
+                           "date", 
+                           "Wake Duration",
+                           super_little_label_size = TRUE)
+
+# respiratory_rate
+rr <- line_plot(sleep, 
+                "respiratory_rate", 
+                "date", 
+                "Respiratory Rate",
+                super_little_label_size = TRUE)
+
+grid.arrange(sleep_area, 
+             grid.arrange(total_sleep, latency, light_sleep_duration, 
+                          slow_wave_sleep_duration, rem_sleep_duration, 
+                          wake_duration, cycles_count, disturbances, rr, 
+                          ncol = 3), 
+             ncol = 1)
 ```
 
+### Workouts
+
+```{r}
+plot_data <- workouts %>% 
+    left_join(avg_workout, by = c("name", "date")) %>% 
+    select(date, 
+           name,
+           intensity_score,
+           raw_intensity_score,
+           kilojoules,
+           max_heart_rate,
+           average_heart_rate,
+           distance,
+           altitude_gain,
+           altitude_change,
+           zone_durations,
+           avg_strain, # RAW
+           avg_score, # NOT RAW
+           avg_kj,
+           avg_cal)
+```
 
 Health Trend Data 
 =====================================
@@ -184,4 +272,33 @@ plot_dat <- get_recovery_trendz_data(recovery,
     ))
 
 plot_trendz(plot_dat)
+```
+
+### Sleep Trends
+
+```{r, out.width = "100%", fig.retina = 6}
+plot_dat <- get_recovery_trendz_data(sleep, 
+                                     c("total_sleep", 
+                                       "light_sleep_duration", 
+                                       "slow_wave_sleep_duration", 
+                                       "rem_sleep_duration",
+                                       "wake_duration",
+                                       "latency", 
+                                       "disturbances", 
+                                       "cycles_count", 
+                                       "respiratory_rate"), 
+                                     c(3, 7, 14, 30)) %>% 
+    mutate(measure = case_when(
+        measure == "total_sleep_ma_nm" ~ "Total Sleep (should be constant)",
+        measure == "light_sleep_duration_ma_nm" ~ "Light (should be low)",
+        measure == "slow_wave_sleep_duration_ma_nm" ~ "SWS (should be high)",
+        measure == "rem_sleep_duration_ma_nm" ~ "REM (should be high)",
+        measure == "wake_duration_ma_nm" ~ "Wake Duration (should be low)", 
+        measure == "latency_ma_nm" ~ "Latency (should be low)",
+        measure == "disturbances_ma_nm" ~ "Disturbances (should be low)",
+        measure == "cycles_count_ma_nm" ~ "Cycles Count (should be high)",
+        measure == "respiratory_rate_ma_nm" ~ "Respiratory Rate (should be constant)"
+    ))
+
+plot_trendz(plot_dat, 3)
 ```

@@ -319,21 +319,52 @@ last_30_day_mean <- function(data, var, start_day = 2, end_day = 31) {
 get_workouts_data <- function() {
     workouts <- read_csv('../data/workouts.csv')
     
+    workouts <- workouts %>% 
+        bind_cols(
+            as_tibble(do.call(rbind, str_split(workouts$during, ","))) %>% 
+                mutate(wo_start = as_datetime(V1, format = "['%Y-%m-%dT%H:%M:%OSZ'"),
+                       wo_end = as_datetime(V2, format = "'%Y-%m-%dT%H:%M:%OSZ')")) %>% 
+                select(wo_start,
+                       wo_end)
+        ) %>% 
+        mutate(date = as_date(wo_start),
+               name = case_when(
+                   (name == "Powerlifting" | 
+                        name == "Functional Fitness") ~ "Weightlifting",
+                   1 == 1 ~ name
+               ))
+    
     return(workouts)
 }
 
 get_avg_workouts_data <- function(workouts) {
     avg_workout <- workouts %>% 
-        filter(!is.na(name)) %>% 
-        mutate(name = case_when(
-            (name == "Powerlifting" | 
-                 name == "Functional Fitness") ~ "Weightlifting",
-            1 == 1 ~ name
-        )) %>% 
-        group_by(name) %>% 
-        slice_head(n = 10) %>% 
-        summarise(count = length(name),
-                  avg_intensity_score = mean(raw_intensity_score * 1000))
+        group_by(name)  %>% 
+        summarise(avg_strain = rollmean(raw_intensity_score * 1000, 
+                                        10, 
+                                        align = "left", 
+                                        fill = NA, 
+                                        na.rm = TRUE),
+                  avg_score = rollmean(intensity_score,
+                                       10, 
+                                       align = "left", 
+                                       fill = NA, 
+                                       na.rm = TRUE),
+                  avg_kj = rollmean(kilojoules,
+                                    10, 
+                                    align = "left", 
+                                    fill = NA, 
+                                    na.rm = TRUE),
+                  avg_cal = rollmean(kilojoules * 0.239,
+                                     10, 
+                                     align = "left", 
+                                     fill = NA, 
+                                     na.rm = TRUE),
+                  date = rollmax(date, 
+                                 10, 
+                                 align = "left", 
+                                 fill = NA, 
+                                 na.rm = TRUE))
     
     return(avg_workout)
 }
@@ -404,6 +435,55 @@ get_sleep_data <- function() {
                sleep_consistency) 
     
     return(sleep)
+}
+
+get_sleep_plot_data <- function(sleep) {    
+    cycles_sum <- sleep %>% 
+        group_by(dotw)  %>% 
+        summarise(avg_strain = rollmean(day_strain, 
+                                        10, 
+                                        align = "left", 
+                                        fill = NA, 
+                                        na.rm = TRUE),
+                  avg_score = rollmean(scaled_strain,
+                                       10, 
+                                       align = "left", 
+                                       fill = NA, 
+                                       na.rm = TRUE),
+                  avg_kj = rollmean(day_kilojoules,
+                                    10, 
+                                    align = "left", 
+                                    fill = NA, 
+                                    na.rm = TRUE),
+                  avg_cal = rollmean(day_cal,
+                                     10, 
+                                     align = "left", 
+                                     fill = NA, 
+                                     na.rm = TRUE),
+                  date = rollmax(day_start, 
+                                 10, 
+                                 align = "left", 
+                                 fill = NA, 
+                                 na.rm = TRUE)) 
+    
+    cycles_plot <- cycles %>%
+        head(10) %>% 
+        left_join(cycles_sum, by = c("dotw" = "dotw", 
+                                     "day_start" = "date")) %>% 
+        select(day_start, 
+               day_strain,
+               scaled_strain,
+               day_kilojoules,
+               day_cal,
+               avg_strain,
+               avg_score,
+               avg_kj,
+               avg_cal,
+               dotw) %>% 
+        mutate(avg_strain = avg_strain * 1000,
+               day_strain = day_strain * 1000)
+    
+    return(cycles_plot)
 }
 
 
