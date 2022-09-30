@@ -279,32 +279,24 @@ workout_facet_plot <- function(dat) {
     max_data <- dat %>% 
         pull(raw_intensity_score) %>% 
         max()
-    label_bump <- max_data * 0.025
+    label_bump <- max_data * 0.015
     
     plot <- ggplot(dat, aes(x = date)) +
         # Add a bar for the variable of concern
-        geom_bar(aes(y = raw_intensity_score), 
-                 stat = "identity",
-                 fill = MAIN_HEX) + 
+        geom_bar(aes(y = raw_intensity_score, fill = name), 
+                 stat = "identity") + 
         # Add a label for the variable's output
         geom_text(aes(label = comma(raw_intensity_score, accuracy = 0.01), 
-                      y = raw_intensity_score + label_bump),
-                  size = LIT_LABEL_SIZE) + 
-        # Add a line for the average for this day
-        geom_errorbar(aes(ymin = avg_strain, ymax = avg_strain)) + 
-        # Add a label for the average
-        geom_text(aes(label = comma(avg_strain, accuracy = 0.01), 
-                      y = avg_strain + label_bump),
-                  size = LIT_LABEL_SIZE) + 
+                      y = label_y + label_bump),
+                  size = LIT_LABEL_SIZE) +
         # Add the day of the week on the bottom
         geom_text(aes(label = dotw, y = label_bump),
                   size = LIT_LABEL_SIZE) + 
         # Add a label for the percentage of average I've done
         geom_text(aes(label = percent((raw_intensity_score - avg_strain) / avg_strain, 
                                       accuracy = 0.01), 
-                      y = raw_intensity_score - label_bump),
+                      y = label_y - label_bump),
                   size = LIT_LABEL_SIZE) +
-        facet_wrap(~ name) +
         # Add commas to the labels
         scale_y_continuous(labels = comma_format()) + 
         # Theme the shit
@@ -313,6 +305,7 @@ workout_facet_plot <- function(dat) {
               axis.ticks = element_blank(),
               axis.text = element_text(size = AXIS_SIZE),
               title = element_blank(),
+              legend.position = "top",
               panel.grid.major.y = element_line(color = "light gray"),
               panel.grid.major.x = element_blank())
     

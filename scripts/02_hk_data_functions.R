@@ -632,5 +632,29 @@ get_workout_health_plot_data <- function(workouts, avg_workout_long) {
                avg_strain, # RAW
                avg_score, # NOT RAW
                avg_kj,
+               avg_cal) %>% 
+        group_by(date) %>% 
+        arrange(desc(date), desc(name)) %>% 
+        mutate(label_y = cumsum(raw_intensity_score)) %>% 
+        ungroup()
+}
+
+get_workout_health_tab_data <- function(workouts, avg_workout_long) {
+    plot_data <- workouts %>% 
+        filter(!is.na(name) & 
+                   date >= floor_date(Sys.Date(), week_start = 1, unit = "week")) %>% 
+        left_join(avg_workout_long, by = c("name", "date")) %>% 
+        mutate(percent_over = percent((raw_intensity_score - avg_strain) / avg_strain, accuracy = 0.01)) %>% 
+        select(date, 
+               dotw,
+               name,
+               raw_intensity_score,
+               percent_over,
+               calories,
+               max_heart_rate,
+               average_heart_rate,
+               distance,
+               altitude_gain,
+               avg_strain, # RAW
                avg_cal)
 }

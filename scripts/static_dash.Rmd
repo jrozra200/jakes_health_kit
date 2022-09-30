@@ -137,7 +137,7 @@ grid.arrange(rhr, hrv, temp, spo2, nrow = 2)
 
 ### Sleep
 
-```{r}
+```{r, fig.retina = 6}
 # Sleep Area 
 sleep_area <- sleep_area_plot(sleep)
 
@@ -214,19 +214,21 @@ grid.arrange(sleep_area,
              ncol = 1)
 ```
 
-### Workouts
+### Workouts from this Week
 
-```{r}
+```{r, fig.retina = 6}
 plot_data <- get_workout_health_plot_data(workouts, avg_workout_long)
 
-workout_facet_plot(plot_data)
-    
-# l30d <- plot_data %>% 
-#     filter(date >= Sys.Date() - days(30))
-# 
-# ggplot(l30d, aes(x = date, color = name)) +
-#     geom_point(aes(y = (raw_intensity_score * 1000))) +
-#     geom_line(aes(y = avg_score))
+plot <- workout_facet_plot(plot_data)
+print(plot)
+```
+
+### Workouts from this Week Table
+
+```{r}
+tab_dat <- get_workout_health_tab_data(workouts, avg_workout_long) 
+
+present_table(tab_dat)
 ```
 
 Health Trend Data 
