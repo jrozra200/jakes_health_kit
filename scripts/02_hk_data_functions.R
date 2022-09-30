@@ -1,6 +1,8 @@
 # UNIVERSAL VARIABLES
 MS_IN_HOUR <- 3600000
 KJ_TO_CAL <- 0.239
+M_TO_MILE <- 1609.344
+M_TO_FT <- 3.28084
 
 # Today's Events
 
@@ -329,11 +331,29 @@ get_workouts_data <- function() {
                        wo_end)
         ) %>% 
         mutate(date = as_date(wo_start),
+               dotw = weekdays(date),
                name = case_when(
                    (name == "Powerlifting" | 
                         name == "Functional Fitness") ~ "Weightlifting",
                    1 == 1 ~ name
-               ))
+               )
+        ) %>% 
+        group_by(name, date, dotw) %>% 
+        summarise(intensity_score = sum(intensity_score, na.rm = TRUE),
+                  raw_intensity_score = sum(raw_intensity_score, na.rm = TRUE) * 1000,
+                  kilojoules = sum(kilojoules, na.rm = TRUE),
+                  calories = sum(kilojoules, na.rm = TRUE) * KJ_TO_CAL,
+                  max_heart_rate = max(max_heart_rate, na.rm = TRUE), 
+                  average_heart_rate = mean(average_heart_rate, na.rm = TRUE),
+                  distance = sum(distance, na.rm = TRUE) / M_TO_MILE, 
+                  altitude_gain = sum(altitude_gain, na.rm = TRUE) / M_TO_FT,
+                  altitude_change = sum(altitude_change, na.rm = TRUE) / M_TO_FT,
+                  zone_durations = paste0(zone_durations, collapse = "|"),
+                  wo_start = min(wo_start, na.rm = TRUE),
+                  wo_end = max(wo_end, na.rm = TRUE)) %>% 
+        ungroup() %>% 
+        arrange(desc(wo_end))
+        
     
     return(workouts)
 }
@@ -341,32 +361,37 @@ get_workouts_data <- function() {
 get_avg_workouts_data <- function(workouts, condensed = FALSE) {
     avg_workout <- workouts %>% 
         group_by(name)  %>% 
-        summarise(event_count = length(name),
-                  avg_strain = rollmean(raw_intensity_score * 1000, 
-                                        ifelse(event_count < 10, event_count, 10), 
+        arrange(desc(date)) %>% 
+        summarise(avg_strain = rollmean(raw_intensity_score, 
+                                        10,
                                         align = "left", 
                                         fill = NA, 
-                                        na.rm = TRUE),
+                                        na.rm = TRUE,
+                                        partial = TRUE),
                   avg_score = rollmean(intensity_score,
-                                       ifelse(event_count < 10, event_count, 10), 
+                                       10,
                                        align = "left", 
                                        fill = NA, 
-                                       na.rm = TRUE),
+                                       na.rm = TRUE,
+                                       partial = TRUE),
                   avg_kj = rollmean(kilojoules,
-                                    ifelse(event_count < 10, event_count, 10), 
+                                    10,
                                     align = "left", 
                                     fill = NA, 
-                                    na.rm = TRUE),
+                                    na.rm = TRUE,
+                                    partial = TRUE),
                   avg_cal = rollmean(kilojoules * 0.239,
-                                     ifelse(event_count < 10, event_count, 10), 
+                                     10,
                                      align = "left", 
                                      fill = NA, 
-                                     na.rm = TRUE),
+                                     na.rm = TRUE,
+                                     partial = TRUE),
                   date = rollmax(date, 
-                                 ifelse(event_count < 10, event_count, 10), 
+                                 10,
                                  align = "left", 
                                  fill = NA, 
-                                 na.rm = TRUE)) %>% 
+                                 na.rm = TRUE,
+                                 partial = TRUE)) %>% 
         filter(!is.na(name))
     
     if (condensed) {
@@ -379,7 +404,7 @@ get_avg_workouts_data <- function(workouts, condensed = FALSE) {
 
 get_todays_workout_data <- function(workouts) {
     todays_workouts <- workouts %>% 
-        filter(as_date(created_at) == Sys.Date())
+        filter(as_date(date) == Sys.Date())
 }
 
 # Sleep

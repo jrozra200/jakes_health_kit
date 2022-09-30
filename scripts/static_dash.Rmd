@@ -54,8 +54,8 @@ mean_spo2 <- last_30_day_mean(recovery, "spo2")
 
 # GET WORKOUTS DATA
 workouts <- get_workouts_data()
-avg_workout <- get_avg_workouts_data(workouts)
-avg_workout_long <- get_avg_workouts_data(workouts, TRUE)
+avg_workout <- get_avg_workouts_data(workouts, TRUE)
+avg_workout_long <- get_avg_workouts_data(workouts)
 todays_workouts <- get_todays_workout_data(workouts)
 
 # GET SLEEP DATA 
@@ -218,7 +218,8 @@ grid.arrange(sleep_area,
 
 ```{r}
 plot_data <- workouts %>% 
-    filter(!is.na(name)) %>% 
+    filter(!is.na(name) & 
+               date >= Sys.Date() - days(10)) %>% 
     left_join(avg_workout_long, by = c("name", "date")) %>% 
     select(date, 
            name,
@@ -236,9 +237,10 @@ plot_data <- workouts %>%
            avg_kj,
            avg_cal)
 
-ggplot(plot_data, aes(x = name, y = raw_intensity_score, group = name, color = name)) + 
-    geom_boxplot() + 
-    geom_jitter(alpha = 0.25)
+ggplot(plot_data, aes(x = date, y = raw_intensity_score, group = name, fill = name)) + 
+    geom_bar(stat = "identity") + 
+    geom_errorbar(aes(ymin = avg_strain, ymax = avg_strain)) + 
+    facet_wrap(~ name)
     
 l30d <- plot_data %>% 
     filter(date >= Sys.Date() - days(30))
