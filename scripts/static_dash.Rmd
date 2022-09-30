@@ -217,37 +217,16 @@ grid.arrange(sleep_area,
 ### Workouts
 
 ```{r}
-plot_data <- workouts %>% 
-    filter(!is.na(name) & 
-               date >= Sys.Date() - days(10)) %>% 
-    left_join(avg_workout_long, by = c("name", "date")) %>% 
-    select(date, 
-           name,
-           intensity_score,
-           raw_intensity_score,
-           kilojoules,
-           max_heart_rate,
-           average_heart_rate,
-           distance,
-           altitude_gain,
-           altitude_change,
-           zone_durations,
-           avg_strain, # RAW
-           avg_score, # NOT RAW
-           avg_kj,
-           avg_cal)
+plot_data <- get_workout_health_plot_data(workouts, avg_workout_long)
 
-ggplot(plot_data, aes(x = date, y = raw_intensity_score, group = name, fill = name)) + 
-    geom_bar(stat = "identity") + 
-    geom_errorbar(aes(ymin = avg_strain, ymax = avg_strain)) + 
-    facet_wrap(~ name)
+workout_facet_plot(plot_data)
     
-l30d <- plot_data %>% 
-    filter(date >= Sys.Date() - days(30))
-
-ggplot(l30d, aes(x = date, color = name)) +
-    geom_point(aes(y = (raw_intensity_score * 1000))) +
-    geom_line(aes(y = avg_score))
+# l30d <- plot_data %>% 
+#     filter(date >= Sys.Date() - days(30))
+# 
+# ggplot(l30d, aes(x = date, color = name)) +
+#     geom_point(aes(y = (raw_intensity_score * 1000))) +
+#     geom_line(aes(y = avg_score))
 ```
 
 Health Trend Data 

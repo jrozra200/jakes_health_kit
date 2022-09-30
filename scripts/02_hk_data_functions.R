@@ -331,7 +331,7 @@ get_workouts_data <- function() {
                        wo_end)
         ) %>% 
         mutate(date = as_date(wo_start),
-               dotw = weekdays(date),
+               dotw = weekdays(date, abbreviate = TRUE),
                name = case_when(
                    (name == "Powerlifting" | 
                         name == "Functional Fitness") ~ "Weightlifting",
@@ -610,4 +610,27 @@ get_recovery_trendz_data <- function(dat, fieldz, dayz) {
                alpha = (days - min(days)) / (max(days) - min(days)))
     
     return(plot_dat)
+}
+
+get_workout_health_plot_data <- function(workouts, avg_workout_long) {
+    plot_data <- workouts %>% 
+        filter(!is.na(name) & 
+                   date >= Sys.Date() - days(10)) %>% 
+        left_join(avg_workout_long, by = c("name", "date")) %>% 
+        select(date, 
+               dotw,
+               name,
+               intensity_score,
+               raw_intensity_score,
+               kilojoules,
+               max_heart_rate,
+               average_heart_rate,
+               distance,
+               altitude_gain,
+               altitude_change,
+               zone_durations,
+               avg_strain, # RAW
+               avg_score, # NOT RAW
+               avg_kj,
+               avg_cal)
 }
