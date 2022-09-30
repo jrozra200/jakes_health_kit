@@ -55,6 +55,7 @@ mean_spo2 <- last_30_day_mean(recovery, "spo2")
 # GET WORKOUTS DATA
 workouts <- get_workouts_data()
 avg_workout <- get_avg_workouts_data(workouts)
+avg_workout_long <- get_avg_workouts_data(workouts, TRUE)
 todays_workouts <- get_todays_workout_data(workouts)
 
 # GET SLEEP DATA 
@@ -75,7 +76,9 @@ Row {.tabset .tabset-fade}
 
 ```{r, out.width = "80%", fig.height = 1, fig.retina = 6, fig.align = 'center'}
 # If today's workout(s) has not happened yet, add it into the graph to show the expected
-expected_strain <- get_expected_strain_data(todays_wo)
+expected_strain <- get_expected_strain_data(todays_wo, 
+                                            todays_workouts, 
+                                            avg_workout)
 
 plot_data <- get_todays_strain_plot_data(expected_strain)
 
@@ -215,7 +218,7 @@ grid.arrange(sleep_area,
 
 ```{r}
 plot_data <- workouts %>% 
-    left_join(avg_workout, by = c("name", "date")) %>% 
+    left_join(avg_workout_long, by = c("name", "date")) %>% 
     select(date, 
            name,
            intensity_score,
@@ -231,6 +234,11 @@ plot_data <- workouts %>%
            avg_score, # NOT RAW
            avg_kj,
            avg_cal)
+
+ggplot(plot_data, aes(x = date, color = name)) + 
+    geom_point(aes(y = raw_intensity_score), stat = "identity") # + 
+    # geom_errorbar(aes(ymin = avg_strain, ymax = avg_strain)) + 
+    # facet_wrap(~ name, nrow = 2)
 ```
 
 Health Trend Data 

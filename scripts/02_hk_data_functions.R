@@ -1,5 +1,6 @@
 # UNIVERSAL VARIABLES
 MS_IN_HOUR <- 3600000
+KJ_TO_CAL <- 0.239
 
 # Today's Events
 
@@ -337,34 +338,41 @@ get_workouts_data <- function() {
     return(workouts)
 }
 
-get_avg_workouts_data <- function(workouts) {
+get_avg_workouts_data <- function(workouts, condensed = FALSE) {
     avg_workout <- workouts %>% 
         group_by(name)  %>% 
-        summarise(avg_strain = rollmean(raw_intensity_score * 1000, 
-                                        10, 
+        summarise(event_count = length(name),
+                  avg_strain = rollmean(raw_intensity_score * 1000, 
+                                        ifelse(event_count < 10, event_count, 10), 
                                         align = "left", 
                                         fill = NA, 
                                         na.rm = TRUE),
                   avg_score = rollmean(intensity_score,
-                                       10, 
+                                       ifelse(event_count < 10, event_count, 10), 
                                        align = "left", 
                                        fill = NA, 
                                        na.rm = TRUE),
                   avg_kj = rollmean(kilojoules,
-                                    10, 
+                                    ifelse(event_count < 10, event_count, 10), 
                                     align = "left", 
                                     fill = NA, 
                                     na.rm = TRUE),
                   avg_cal = rollmean(kilojoules * 0.239,
-                                     10, 
+                                     ifelse(event_count < 10, event_count, 10), 
                                      align = "left", 
                                      fill = NA, 
                                      na.rm = TRUE),
                   date = rollmax(date, 
-                                 10, 
+                                 ifelse(event_count < 10, event_count, 10), 
                                  align = "left", 
                                  fill = NA, 
-                                 na.rm = TRUE))
+                                 na.rm = TRUE)) %>% 
+        filter(!is.na(name))
+    
+    if (condensed) {
+        avg_workout <- avg_workout %>% 
+            slice_head(n = 1)
+    }
     
     return(avg_workout)
 }
@@ -487,7 +495,7 @@ get_sleep_plot_data <- function(sleep) {
 }
 
 
-get_expected_strain_data <- function(todays_wo) {
+get_expected_strain_data <- function(todays_wo, todays_workouts, avg_workout) {
     # If there are two events in today's plan
     if (grepl("\\+", todays_wo)) {
         todays_wo <- unlist(str_split(todays_wo, " \\+ "))
@@ -502,7 +510,7 @@ get_expected_strain_data <- function(todays_wo) {
             next
         } 
         
-        expected_strain <- expected_strain + avg_workout$avg_intensity_score[avg_workout$name == two]
+        expected_strain <- expected_strain + avg_workout$avg_strain[avg_workout$name == two]
     }
     
     return(expected_strain)
