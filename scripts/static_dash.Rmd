@@ -228,7 +228,8 @@ print(plot)
 ```{r}
 tab_dat <- get_workout_health_tab_data(workouts, avg_workout_long) 
 
-present_table(tab_dat)
+tab <- present_table(tab_dat)
+
 ```
 
 Health Trend Data 
