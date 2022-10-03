@@ -335,6 +335,7 @@ get_workouts_data <- function() {
                name = case_when(
                    (name == "Powerlifting" | 
                         name == "Functional Fitness") ~ "Weightlifting",
+                   is.na(name) ~ "NA",
                    1 == 1 ~ name
                )
         ) %>% 
@@ -657,4 +658,12 @@ get_workout_health_tab_data <- function(workouts, avg_workout_long) {
                altitude_gain,
                avg_strain, # RAW
                avg_cal)
+}
+
+get_sports <- function() {
+    sports <- read_csv("../data/sports.csv") %>% 
+        select(name,
+               category)
+    
+    return(sports)
 }

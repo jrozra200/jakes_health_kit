@@ -117,6 +117,7 @@ cycles.to_csv('../data/cycles.csv', index = False)
 sleeps.to_csv('../data/sleeps.csv', index = False)
 recovery.to_csv('../data/recovery.csv', index = False)
 workouts.to_csv('../data/workouts.csv', index = False)
+sports.to_csv('../data/sports.csv', index = False)
 
 # response = s.get(
 #     url = f'{api_url}/users/{user_id}/metrics/heart_rate',
