@@ -667,3 +667,9 @@ get_sports <- function() {
     
     return(sports)
 }
+
+get_soccer_data <- function() {
+    soccer <- read_csv("../data/futbol_schedule.csv")
+    
+    return(soccer)
+}
