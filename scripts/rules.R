@@ -36,38 +36,39 @@ workouts <- get_workouts_data() %>%
     filter(date >= range_start) %>% 
     left_join(sports, by = "name")
 
+# Need to distinguish between non-cardio and cardio next
+
 workout_dates <- workouts %>% 
     group_by(date) %>% 
-    summarise(workouts_completed = paste0(name, collapse = " + ")) %>% 
-    left_join(get_cycles_data(), by = c("date" = "day_start")) %>% 
-    select(date, workouts_completed, day_strain) %>% 
-    mutate(day_strain = day_strain * 1000,
+    summarise(workouts_completed = paste0(name, collapse = " + "),
+              category = paste0(category, collapse = " + "),
+              act_strain = sum(raw_intensity_score)) %>% 
+    full_join(get_cycles_data(), by = c("date" = "day_start")) %>% 
+    filter(date >= range_start & 
+               date <= Sys.Date() - days(1)) %>% 
+    select(date, workouts_completed, category, act_strain, day_strain) %>% 
+    mutate(workouts_completed = ifelse(is.na(workouts_completed), 
+                                       "Other - Recovery",
+                                       workouts_completed),
+           day_strain = ifelse(is.na(day_strain), 0, day_strain * 1000),
            avg_strain = get_thirty_day_strain(get_cycles_data()),
            over_avg = ifelse(day_strain >= avg_strain, TRUE, FALSE),
            cons_ov_avg = ifelse(day_strain >= avg_strain, 
                                 cumsum(over_avg),
-                                0))
-
-# If there are any missing dates, then they count as recovery
-missing_dates <- range_start:(Sys.Date() - days(1))
-missing_dates <- missing_dates[!missing_dates %in% workout_dates$date]
-
-tmp <- tibble()
-
-if (length(missing_dates) > 0) {
-    tmp <- tibble(date = as_date(missing_dates),
-                  workouts_completed = "Other - Recovery")
-    
-    workout_dates <- bind_rows(workout_dates, tmp)
-    
-    tmp <- tmp %>% 
-        mutate(category = "restorative") %>% 
-        rename(name = workouts_completed)
-}
+                                0),
+           category_restore = case_when(
+               workouts_completed == "Walking" & act_strain < 1 ~ TRUE,
+               category == "restorative" ~ TRUE,
+               1 == 1 ~ FALSE),
+           category_muscular = ifelse(grepl("muscular", category), TRUE, FALSE),
+           category_cardio = ifelse(grepl("cardiovascular", category), 
+                                    TRUE, FALSE),
+           category_non = ifelse(grepl("non-cardiovascular", category) & 
+                                     !(workouts_completed == "Walking" & 
+                                           act_strain < 1), TRUE, FALSE))
 
 category_sum <- workouts %>% 
-    select(date, name, category) %>% 
-    bind_rows(tmp) %>%
+    select(date, name, category) %>%
     left_join(workout_dates, by = "date") %>% 
     mutate(category = ifelse(name == "Walking" & workouts_completed == "Walking",
                              "restorative", category)) %>% 
@@ -177,6 +178,6 @@ if (dim(soccer_sched)[1] > 0) {
 class_sched <- get_class_data() %>% 
     filter(as_date(class_dates) == Sys.Date())
 
-if (dim(class_sched)[1] > 0) {
+if (dim(class_sched)[1] == 0) {
     today_name <- paste0(today_name, " + Walking")
 }
