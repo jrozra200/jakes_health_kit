@@ -237,6 +237,17 @@ get_cycles_data <- function() {
     return(cycles)
 }
 
+get_thirty_day_strain <- function(cycles) {
+    avg <- cycles %>% 
+        filter(day_start >= Sys.Date() - days(30) & 
+                   day_start < Sys.Date()) %>% 
+        mutate(day_strain = day_strain * 1000) %>% 
+        pull(day_strain) %>% 
+        mean(na.rm = TRUE)
+    
+    return(avg)
+}
+
 get_cycles_plot_data <- function(cycles) {    
     cycles_sum <- cycles %>% 
         group_by(dotw)  %>% 
@@ -672,4 +683,10 @@ get_soccer_data <- function() {
     soccer <- read_csv("../data/futbol_schedule.csv")
     
     return(soccer)
+}
+
+get_class_data <- function() {
+    class <- read_csv("../data/class_schedule.csv")
+    
+    return(class)
 }
