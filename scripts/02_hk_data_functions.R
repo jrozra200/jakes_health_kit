@@ -237,17 +237,6 @@ get_cycles_data <- function() {
     return(cycles)
 }
 
-get_thirty_day_strain <- function(cycles) {
-    avg <- cycles %>% 
-        filter(day_start >= Sys.Date() - days(30) & 
-                   day_start < Sys.Date()) %>% 
-        mutate(day_strain = day_strain * 1000) %>% 
-        pull(day_strain) %>% 
-        mean(na.rm = TRUE)
-    
-    return(avg)
-}
-
 get_cycles_plot_data <- function(cycles) {    
     cycles_sum <- cycles %>% 
         group_by(dotw)  %>% 
@@ -323,6 +312,26 @@ last_30_day_mean <- function(data, var, start_day = 2, end_day = 31) {
         slice(start_day:end_day) %>% 
         pull(get(var)) %>% 
         mean(na.rm = TRUE)
+    
+    return(mean_var)
+}
+
+last_30_day_ma <- function(data, 
+                           var, 
+                           date_var, 
+                           start_date, 
+                           end_date, 
+                           days_back = 30) {
+    mean_var <- data %>%
+        mutate(ma = rollmean(get(var), 
+                             days_back, 
+                             fill = NA, 
+                             align = "left", 
+                             na.rm = TRUE)) %>% 
+        filter(get(date_var) >= start_date & 
+                   get(date_var) <= end_date) %>% 
+        pull(ma)
+        
     
     return(mean_var)
 }
