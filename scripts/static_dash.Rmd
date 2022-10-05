@@ -15,11 +15,12 @@ source("01_hk_libraries.R")
 
 # DATA REFRESH
 system("python whoop.py")
-system("Rscript --vanilla rules.R")
+# system("Rscript --vanilla rules.R")
 system("python get_events.py")
 # RENPHO
 # EIGHT SLEEP
 # STRAVA
+# HEADSPACE
 
 # DATA SOURCE FUNCTIONS
 source("02_hk_data_functions.R")
@@ -37,7 +38,7 @@ wo_windows <- get_wo_windows(events)
 
 # GET WORK OUT DATA
 wo <- get_wo_schedule_data()
-todays_wo <- get_todays_wo_data(wo)
+todays_wo <- get_todays_wo()
 wo_message <- get_wo_message(todays_wo, wo_window_num)
 
 # GET CYCLES DATA
@@ -80,7 +81,7 @@ expected_strain <- get_expected_strain_data(todays_wo,
                                             todays_workouts, 
                                             avg_workout)
 
-plot_data <- get_todays_strain_plot_data(expected_strain)
+plot_data <- get_todays_strain_plot_data(cycles_plot, expected_strain)
 
 plot_todays_strain(plot_data)
 ```

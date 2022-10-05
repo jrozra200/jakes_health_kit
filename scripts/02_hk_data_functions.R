@@ -316,6 +316,26 @@ last_30_day_mean <- function(data, var, start_day = 2, end_day = 31) {
     return(mean_var)
 }
 
+last_30_day_ma <- function(data, 
+                           var, 
+                           date_var, 
+                           start_date, 
+                           end_date, 
+                           days_back = 30) {
+    mean_var <- data %>%
+        mutate(ma = rollmean(get(var), 
+                             days_back, 
+                             fill = NA, 
+                             align = "left", 
+                             na.rm = TRUE)) %>% 
+        filter(get(date_var) >= start_date & 
+                   get(date_var) <= end_date) %>% 
+        pull(ma)
+        
+    
+    return(mean_var)
+}
+
 
 # Workouts 
 
@@ -335,6 +355,7 @@ get_workouts_data <- function() {
                name = case_when(
                    (name == "Powerlifting" | 
                         name == "Functional Fitness") ~ "Weightlifting",
+                   is.na(name) ~ "NA",
                    1 == 1 ~ name
                )
         ) %>% 
@@ -405,6 +426,8 @@ get_avg_workouts_data <- function(workouts, condensed = FALSE) {
 get_todays_workout_data <- function(workouts) {
     todays_workouts <- workouts %>% 
         filter(as_date(date) == Sys.Date())
+    
+    return(todays_workouts)
 }
 
 # Sleep
@@ -541,7 +564,7 @@ get_expected_strain_data <- function(todays_wo, todays_workouts, avg_workout) {
     return(expected_strain)
 }
 
-get_todays_strain_plot_data <- function(expected_strain) {
+get_todays_strain_plot_data <- function(cycles_plot, expected_strain) {
     plot_data <- cycles_plot %>% 
         head(1)  %>% 
         select(day_start,
@@ -657,4 +680,246 @@ get_workout_health_tab_data <- function(workouts, avg_workout_long) {
                altitude_gain,
                avg_strain, # RAW
                avg_cal)
+}
+
+get_sports <- function() {
+    sports <- read_csv("../data/sports.csv") %>% 
+        select(name,
+               category)
+    
+    return(sports)
+}
+
+get_soccer_data <- function() {
+    soccer <- read_csv("../data/futbol_schedule.csv")
+    
+    return(soccer)
+}
+
+get_class_data <- function() {
+    class <- read_csv("../data/class_schedule.csv")
+    
+    return(class)
+}
+
+get_workout_dates_data <- function(range_start) {
+    workout_dates <- get_workouts_data() %>% 
+        filter(date >= range_start) %>% 
+        left_join(get_sports(), by = "name") %>% 
+        mutate(new_cat = str_sub(category, 1, 5)) %>% 
+        group_by(date) %>% 
+        summarise(workouts_completed = paste0(name, collapse = " + "),
+                  category = paste0(new_cat, collapse = " + "),
+                  act_strain = sum(raw_intensity_score)) %>% 
+        full_join(get_cycles_data(), by = c("date" = "day_start")) %>% 
+        filter(date >= range_start & 
+                   date <= Sys.Date() - days(1)) %>% 
+        select(date, workouts_completed, category, act_strain, day_strain) %>% 
+        mutate(workouts_completed = ifelse(is.na(workouts_completed), 
+                                           "Other - Recovery",
+                                           workouts_completed),
+               day_strain = ifelse(is.na(day_strain), 0, day_strain * 1000),
+               avg_strain = last_30_day_ma(get_cycles_data(),
+                                           "day_strain",
+                                           "day_start",
+                                           range_start,
+                                           Sys.Date() - days(1)) * 1000,
+               over_avg = ifelse(day_strain >= avg_strain, 1, -1),
+               plus_minus = cumsum(over_avg),
+               category_restore = case_when(
+                   workouts_completed == "Walking" & act_strain < 1 ~ TRUE,
+                   category == "resto" ~ TRUE,
+                   1 == 1 ~ FALSE),
+               category_muscular = ifelse(grepl("muscu", category), TRUE, FALSE),
+               category_cardio = ifelse(grepl("cardi", category), 
+                                        TRUE, FALSE),
+               category_non = ifelse(grepl("non-c", category) & 
+                                         !(workouts_completed == "Walking" & 
+                                               act_strain < 1), TRUE, FALSE))
+    
+    return(workout_dates)
+}
+
+get_category_sum_data <- function(workout_dates,
+                                  NUM_CARDIO,
+                                  NUM_MUSCULAR,
+                                  NUM_NON,
+                                  NUM_RESTORE) {
+    category_sum <- workout_dates %>% 
+        summarise(restorative = sum(category_restore),
+                  cardiovascular = sum(category_cardio),
+                  `non-cardiovascular` = sum(category_non),
+                  muscular = sum(category_muscular)) %>% 
+        pivot_longer(cols = c("cardiovascular", 
+                              "muscular", 
+                              "non-cardiovascular", 
+                              "restorative"),
+                     names_to = "category",
+                     values_to = "num_efforts") %>% 
+        mutate(behind = case_when(category == "cardiovascular" & num_efforts < NUM_CARDIO ~ TRUE,
+                                  category == "cardiovascular" & num_efforts >= NUM_CARDIO ~ FALSE,
+                                  category == "muscular" & num_efforts < NUM_MUSCULAR ~ TRUE,
+                                  category == "muscular" & num_efforts >= NUM_MUSCULAR ~ FALSE,
+                                  category == "non-cardiovascular" & num_efforts < NUM_NON ~ TRUE,
+                                  category == "non-cardiovascular" & num_efforts >= NUM_NON ~ FALSE,
+                                  category == "restorative" & num_efforts < NUM_RESTORE ~ TRUE,
+                                  category == "restorative" & num_efforts >= NUM_RESTORE ~ FALSE))
+    
+    days_since_last <- tibble(
+        category = c("cardiovascular", 
+                     "muscular", 
+                     "non-cardiovascular", 
+                     "restorative"),
+        last_date = c(max(workout_dates$date[workout_dates$category_cardio == TRUE]),
+                      max(workout_dates$date[workout_dates$category_muscular == TRUE]),
+                      max(workout_dates$date[workout_dates$category_non == TRUE]),
+                      max(workout_dates$date[workout_dates$category_restore == TRUE]))) %>%
+        mutate(last_date = ifelse(is.infinite(last_date), 
+                                  Sys.Date() - days(7),
+                                  last_date),
+               last_date = as_date(last_date),
+               days_since_last = Sys.Date() - last_date)
+    
+    category_sum <- category_sum %>% 
+        left_join(days_since_last, by = "category")
+    
+    return(category_sum)
+}
+
+get_current_rating <- function(workout_dates) {
+    current_rating <- workout_dates %>% 
+        arrange(date) %>% 
+        tail(1) %>% 
+        pull(plus_minus)
+    
+    return(current_rating)
+}
+
+get_todays_wo <- function() {
+    ####################################
+    ## HOW MANY WORKOUTS ON A ROLLING ##
+    ## 7 DAY WINDOW DO I WANT TO DO?  ##
+    ####################################
+    
+    NUM_CARDIO <- 3 # 3 Days Cardio
+    NUM_MUSCULAR <- 3 # 3 Days Lifting
+    NUM_NON <- 3 # 3 Days Walking the Dog
+    NUM_RESTORE <- 1 # 1 Day Break
+    MAX_DAYS_OVER <- 2 # Can sustain 2 above average days in a row
+    MAX_DAYS_UNDER <- 3 # Can allow 3 below average days in a row
+    
+    ###############################
+    ## LOOK BACK 6 DAYS AND PLAN ##
+    ## TODAY AND THE NEXT 6      ##
+    ###############################
+    
+    range_start <- Sys.Date() - days(6)
+    range_end <- Sys.Date() + days(6)
+    
+    # GET THE WORKOUTS DATA
+    workout_dates <- get_workout_dates_data(range_start)
+    
+    category_sum <- get_category_sum_data(workout_dates,
+                                          NUM_CARDIO,
+                                          NUM_MUSCULAR,
+                                          NUM_NON,
+                                          NUM_RESTORE)
+    
+    current_rating <- get_current_rating(workout_dates)
+    
+    # EACH DAY SHOULD EITHER BE CARDIO OR LIFTING OR RECOVERY
+    # 0. Even if I am overdue for something else... If I have had heavy strain, 
+    #    prioritize recovery
+    # 1. Cardio if I am both behind and it is the most days since last
+    # 2. Lifting if I am both behind and it is the most days since last
+    # 3. Randomly pick if they are both  behind and equal days since last
+    # 4. Recovery if cardio and lifting are both not behind
+    # 5. If you've already worked out today, you can do a recovery
+    
+    # If you've worked out today, you can optionally do a recovery
+    if (min(category_sum$days_since_last) == 0) {
+        
+        today_type <- "restorative"
+        
+        # If I've had too many hard days in a row, prioritize a recovery    
+    } else if (current_rating > MAX_DAYS_OVER) {
+        
+        today_type <- "restorative"
+        
+        # If muscular and cardio are behind by the same amount of days, choose randomly    
+    } else if ((category_sum$behind[category_sum$category == "cardiovascular"] & 
+                category_sum$behind[category_sum$category == "muscular"] & 
+                (category_sum$num_efforts[category_sum$category == "cardiovascular"] == 
+                 category_sum$num_efforts[category_sum$category == "muscular"]))) {
+        
+        today_type <- sample(c("cardiovascular", "muscular"), 1)
+        
+        # If muscular and cardio are behind but cardio by more days, choose cardio    
+    } else if (category_sum$behind[category_sum$category == "cardiovascular"] & 
+               category_sum$behind[category_sum$category == "muscular"] & 
+               (category_sum$num_efforts[category_sum$category == "cardiovascular"] > 
+                category_sum$num_efforts[category_sum$category == "muscular"])) {
+        
+        today_type <- "cardiovascular"
+        
+        # If muscular and cardio are behind but muscular by more days, choose muscular
+    } else if (category_sum$behind[category_sum$category == "cardiovascular"] & 
+               category_sum$behind[category_sum$category == "muscular"] & 
+               (category_sum$num_efforts[category_sum$category == "cardiovascular"] < 
+                category_sum$num_efforts[category_sum$category == "muscular"])) {
+        
+        today_type <- "muscular"
+        
+        # If cardio is the only one behind, choose cardio
+    } else if (category_sum$behind[category_sum$category == "cardiovascular"]) {
+        
+        today_type <- "cardiovascular"
+        
+        # If muscular is the only one behind, choose muscular
+    } else if (category_sum$behind[category_sum$category == "muscular"]) {
+        
+        today_type <- "muscular"
+        
+        # If nothing is behind, recover!    
+    } else {
+        today_type <- "restorative"
+    }
+    
+    # Now that I know the type, let's name the exercise
+    # 1. Restorative can be sauna, yoga, walking
+    # 2. Muscular is lifting
+    # 3. Cardio is cycling or running (or soccer, but that's handled separately)
+    #    If I have been under average for a while, choose running
+    
+    today_name <- case_when(
+        today_type == "restorative" ~ sample(c("Yoga", "Walking"), 1),
+        today_type == "muscular" ~ "Weightlifting",
+        today_type == "cardiovascular" & current_rating < MAX_DAYS_UNDER ~ "Running",
+        today_type == "cardiovascular" & current_rating >= MAX_DAYS_UNDER ~ "Spin"
+    )
+    
+    
+    ############################
+    ## Is today a soccer day? ##
+    ## Then override the type ##
+    ############################
+    soccer_sched <- get_soccer_data() %>% 
+        filter(as_date(datetime) == Sys.Date())
+    
+    if (dim(soccer_sched)[1] > 0) {
+        today_type <- "cardiovascular"
+        today_name <- "Soccer"
+    }
+    
+    #################
+    ## Add a Walk? ##
+    #################
+    class_sched <- get_class_data() %>% 
+        filter(as_date(class_dates) == Sys.Date())
+    
+    if (dim(class_sched)[1] == 0) {
+        today_name <- paste0(today_name, " + Walking")
+    }
+    
+    return(today_name)
 }

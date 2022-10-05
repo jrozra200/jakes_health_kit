@@ -1,166 +1,136 @@
+#!/usr/bin/env Rscript
+
+###############
+## LIBRARIES ##
+###############
+
 library(lubridate)
 library(readr)
 library(dplyr)
 library(stringr)
+library(zoo)
+library(tidyr)
 
-## Work it out for this week
+####################################
+## HOW MANY WORKOUTS ON A ROLLING ##
+## 7 DAY WINDOW DO I WANT TO DO?  ##
+####################################
 
-week_start <- floor_date(Sys.Date(), unit = "week", week_start = 1)
-week_end <- week_start + days(6)
-days_of_week <- tibble(day = 1:7,
-                       date = as_date(week_start:week_end),
-                       lift = NA,
-                       soccer = NA,
-                       run = NA,
-                       walk = NA,
-                       sauna = NA,
-                       recovery = NA) %>% 
-    mutate(dotw = weekdays(date))
 
-## Encode rules
+NUM_CARDIO <- 3 # 3 Days Cardio
+NUM_MUSCULAR <- 3 # 3 Days Lifting
+NUM_NON <- 3 # 3 Days Walking the Dog
+NUM_RESTORE <- 1 # 1 Day Break
+MAX_DAYS_OVER <- 2 # Can sustain 2 above average days in a row
+MAX_DAYS_UNDER <- 3 # Can allow 3 below average days in a row
 
-# Soccer is on Mondays and Thursdays (and scheduled)
-fuss_sched <- read_csv("../data/futbol_schedule.csv") %>% 
-    filter(datetime >= week_start &
-               datetime <= week_end)
+###############################
+## LOOK BACK 6 DAYS AND PLAN ##
+## TODAY AND THE NEXT 6      ##
+###############################
 
-# I _should_ walk the dog on *weekdays* that I don't have class 
-class_days <- read_csv("../data/class_schedule.csv") %>% 
-    pull(class_dates)
+range_start <- Sys.Date() - days(6)
+range_end <- Sys.Date() + days(6)
 
-walk_poppy <- days_of_week %>% 
-    filter(!date %in% class_days & 
-               !dotw %in% c("Sunday", "Saturday")) %>% 
-    pull(date)
+# GET THE WORKOUTS DATA
+source("02_hk_data_functions.R")
 
-# I need to lift at least 3 times a week
-TOT_LIFTS <- 3
-num_lifts <- 0
-yest_lift <- 0
+workout_dates <- get_workout_dates_data(range_start)
 
-# I need to run at least 2 times a week (soccer counts as running)
-TOT_RUNS <- 2
-num_runs <- 0
-yest_run <- 0
-yest_fuss <- 0
+category_sum <- get_category_sum_data(workout_dates)
 
-# I need to have 1 [active] recovery day per week
-#    - Long, light jog (i.e. 3 miles @ 10 min/mile)
-#    - 30 minute low impact ride
-TOT_RECOV <- 1
-num_recov <- 0
-yest_recov <- 0
+current_rating <- get_current_rating(workout_dates)
 
-# I need to have 1 sauna session per week
-TOT_SAUNA <- 1
-num_sauna <- 0
-yest_sauna <- 0
+# EACH DAY SHOULD EITHER BE CARDIO OR LIFTING OR RECOVERY
+# 0. Even if I am overdue for something else... If I have had heavy strain, 
+#    prioritize recovery
+# 1. Cardio if I am both behind and it is the most days since last
+# 2. Lifting if I am both behind and it is the most days since last
+# 3. Randomly pick if they are both  behind and equal days since last
+# 4. Recovery if cardio and lifting are both not behind
+# 5. If you've already worked out today, you can do a recovery
 
-# I need to have at least one workout session per day
-# - Active Recovery
-# - Run
-# - Soccer
-# - Lift
-# - Walk longer than 1 hour
-TOT_SESS_DAY <- 1
-
-for (day in days_of_week$day) {
-    wd <- days_of_week$date[day]
+# If you've worked out today, you can optionally do a recovery
+if (min(category_sum$days_since_last) == 0) {
     
-    # Is today a soccer day?
-    if (wd %in% as_date(fuss_sched$datetime)) {
-        days_of_week$soccer[day] <- TRUE
-        num_runs <- num_runs + 1
-        yest_fuss <- yest_fuss + 1
-        
-        days_of_week$run[day] <- FALSE
-        yest_run <- 0
-        
-        days_of_week$lift[day] <- FALSE
-        yest_lift <- 0
-        
-        days_of_week$sauna[day] <- FALSE
-        yest_sauna <- 0
-        
-        days_of_week$recovery[day] <- FALSE
-        yest_recov <- 0
-        
-    } else {
-        days_of_week$soccer[day] <- FALSE
-        yest_fuss <- 0
-    }
+    today_type <- "restorative"
+
+# If I've had too many hard days in a row, prioritize a recovery    
+} else if (current_rating > MAX_DAYS_OVER) {
     
-    # Is today a walk poppy day?
-    if (wd %in% walk_poppy) {
-        days_of_week$walk[day] <- TRUE
-    } else {
-        days_of_week$walk[day] <- FALSE
-    }
+    today_type <- "restorative"
     
-    # Is today a lifting or running day? 
-    if (days_of_week$soccer[day] == FALSE) { 
-        
-        # Lift first, unless you've lifted for the last 2 days
-        if(num_lifts < TOT_LIFTS & yest_lift < 2) {
-            days_of_week$lift[day] <- TRUE
-            num_lifts <- num_lifts + 1
-            yest_lift <- yest_lift + 1
-            
-            days_of_week$run[day] <- FALSE
-            yest_run <- 0
-            
-            days_of_week$recovery[day] <- FALSE
-            yest_recov <- 0
-            
-            days_of_week$soccer[day] <- FALSE
-            yest_fuss <- 0
-            
-            days_of_week$sauna[day] <- FALSE
-            yest_sauna <- 0
-        } 
-        
-        # Run next, unless you ran yesterday (or played soccer)
-        # If you have an extra day, it is a run day
-        else if (yest_fuss == 0 & yest_run == 0 & 
-                 (num_runs < TOT_RUNS | 
-                  (num_lifts >= TOT_LIFTS & num_recov >= TOT_RECOV))) {
-            days_of_week$run[day] <- TRUE
-            num_runs <- num_runs + 1
-            yest_run <- yest_run + 1
-            
-            days_of_week$lift[day] <- FALSE
-            yest_lift <- 0
-            
-            days_of_week$recovery[day] <- FALSE
-            yest_recov <- 0
-            
-            days_of_week$soccer[day] <- FALSE
-            yest_fuss <- 0
-            
-            days_of_week$sauna[day] <- FALSE
-            yest_sauna <- 0
-        } 
-        
-        # Recover last (with a trip to the sauna)
-        else {
-            days_of_week$recovery[day] <- TRUE
-            num_recov <- num_recov + 1
-            yest_recov <- yest_recov + 1
-            
-            days_of_week$sauna[day] <- TRUE
-            num_sauna <- num_sauna + 1
-            yest_sauna <- yest_sauna + 1
-            
-            days_of_week$lift[day] <- FALSE
-            yest_lift <- 0
-            
-            days_of_week$run[day] <- FALSE
-            yest_run <- 0
-            
-            days_of_week$soccer[day] <- FALSE
-            yest_fuss <- 0
-        }
-    } 
+# If muscular and cardio are behind by the same amount of days, choose randomly    
+} else if ((category_sum$behind[category_sum$category == "cardiovascular"] & 
+     category_sum$behind[category_sum$category == "muscular"] & 
+     (category_sum$num_efforts[category_sum$category == "cardiovascular"] == 
+         category_sum$num_efforts[category_sum$category == "muscular"]))) {
+    
+    today_type <- sample(c("cardiovascular", "muscular"), 1)
+
+# If muscular and cardio are behind but cardio by more days, choose cardio    
+} else if (category_sum$behind[category_sum$category == "cardiovascular"] & 
+           category_sum$behind[category_sum$category == "muscular"] & 
+           (category_sum$num_efforts[category_sum$category == "cardiovascular"] > 
+            category_sum$num_efforts[category_sum$category == "muscular"])) {
+    
+    today_type <- "cardiovascular"
+
+# If muscular and cardio are behind but muscular by more days, choose muscular
+} else if (category_sum$behind[category_sum$category == "cardiovascular"] & 
+           category_sum$behind[category_sum$category == "muscular"] & 
+           (category_sum$num_efforts[category_sum$category == "cardiovascular"] < 
+            category_sum$num_efforts[category_sum$category == "muscular"])) {
+    
+    today_type <- "muscular"
+    
+# If cardio is the only one behind, choose cardio
+} else if (category_sum$behind[category_sum$category == "cardiovascular"]) {
+    
+    today_type <- "cardiovascular"
+    
+# If muscular is the only one behind, choose muscular
+} else if (category_sum$behind[category_sum$category == "muscular"]) {
+
+    today_type <- "muscular"
+
+# If nothing is behind, recover!    
+} else {
+    today_type <- "restorative"
 }
 
-write_csv(days_of_week, "../data/workout_schedule.csv")
+# Now that I know the type, let's name the exercise
+# 1. Restorative can be sauna, yoga, walking
+# 2. Muscular is lifting
+# 3. Cardio is cycling or running (or soccer, but that's handled separately)
+#    If I have been under average for a while, choose running
+
+today_name <- case_when(
+    today_type == "restorative" ~ sample(c("Sauna", "Yoga", "Walking"), 1),
+    today_type == "muscular" ~ "Lifting",
+    today_type == "cardiovascular" & current_rating < MAX_DAYS_UNDER ~ "Running",
+    today_type == "cardiovascular" & current_rating >= MAX_DAYS_UNDER ~ "Cycling"
+)
+
+
+############################
+## Is today a soccer day? ##
+## Then override the type ##
+############################
+soccer_sched <- get_soccer_data() %>% 
+    filter(as_date(datetime) == Sys.Date())
+
+if (dim(soccer_sched)[1] > 0) {
+    today_type <- "cardiovascular"
+    today_name <- "Soccer"
+}
+
+#################
+## Add a Walk? ##
+#################
+class_sched <- get_class_data() %>% 
+    filter(as_date(class_dates) == Sys.Date())
+
+if (dim(class_sched)[1] == 0) {
+    today_name <- paste0(today_name, " + Walking")
+}
