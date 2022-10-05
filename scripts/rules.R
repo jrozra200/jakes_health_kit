@@ -9,6 +9,7 @@ library(readr)
 library(dplyr)
 library(stringr)
 library(zoo)
+library(tidyr)
 
 ####################################
 ## HOW MANY WORKOUTS ON A ROLLING ##
@@ -19,6 +20,8 @@ NUM_CARDIO <- 3 # 3 Days Cardio
 NUM_MUSCULAR <- 3 # 3 Days Lifting
 NUM_NON <- 3 # 3 Days Walking the Dog
 NUM_RESTORE <- 1 # 1 Day Break
+MAX_DAYS_OVER <- 2 # Can sustain 2 above average days in a row
+MAX_DAYS_UNDER <- 3 # Can allow 3 below average days in a row
 
 ###############################
 ## LOOK BACK 6 DAYS AND PLAN ##
@@ -30,83 +33,12 @@ range_end <- Sys.Date() + days(6)
 
 # GET THE WORKOUTS DATA
 source("02_hk_data_functions.R")
-sports <- get_sports()
 
-workouts <- get_workouts_data() %>% 
-    filter(date >= range_start) %>% 
-    left_join(sports, by = "name")
+workout_dates <- get_workout_dates_data(range_start)
 
-workout_dates <- workouts %>% 
-    mutate(new_cat = str_sub(category, 1, 5)) %>% 
-    group_by(date) %>% 
-    summarise(workouts_completed = paste0(name, collapse = " + "),
-              category = paste0(new_cat, collapse = " + "),
-              act_strain = sum(raw_intensity_score)) %>% 
-    full_join(get_cycles_data(), by = c("date" = "day_start")) %>% 
-    filter(date >= range_start & 
-               date <= Sys.Date() - days(1)) %>% 
-    select(date, workouts_completed, category, act_strain, day_strain) %>% 
-    mutate(workouts_completed = ifelse(is.na(workouts_completed), 
-                                       "Other - Recovery",
-                                       workouts_completed),
-           day_strain = ifelse(is.na(day_strain), 0, day_strain * 1000),
-           avg_strain = last_30_day_ma(get_cycles_data(),
-                                       "day_strain",
-                                       "day_start",
-                                       range_start,
-                                       Sys.Date() - days(1)) * 1000,
-           over_avg = ifelse(day_strain >= avg_strain, 1, -1),
-           plus_minus = cumsum(over_avg),
-           category_restore = case_when(
-               workouts_completed == "Walking" & act_strain < 1 ~ TRUE,
-               category == "resto" ~ TRUE,
-               1 == 1 ~ FALSE),
-           category_muscular = ifelse(grepl("muscu", category), TRUE, FALSE),
-           category_cardio = ifelse(grepl("cardi", category), 
-                                    TRUE, FALSE),
-           category_non = ifelse(grepl("non-c", category) & 
-                                     !(workouts_completed == "Walking" & 
-                                           act_strain < 1), TRUE, FALSE))
+category_sum <- get_category_sum_data(workout_dates)
 
-category_sum <- workouts %>% 
-    select(date, name, category) %>%
-    left_join(workout_dates, by = "date") %>% 
-    mutate(category = ifelse(name == "Walking" & workouts_completed == "Walking",
-                             "restorative", category)) %>% 
-    group_by(category) %>% 
-    summarise(num_efforts = length(name),
-              last_effort = max(date)) %>% 
-    mutate(days_since_last = Sys.Date() - last_effort,
-           behind = case_when(
-               category == "cardiovascular" & num_efforts < NUM_CARDIO ~ TRUE,
-               category == "cardiovascular" & num_efforts >= NUM_CARDIO ~ FALSE,
-               category == "muscular" & num_efforts < NUM_MUSCULAR ~ TRUE,
-               category == "muscular" & num_efforts >= NUM_MUSCULAR ~ FALSE,
-               category == "non-cardiovascular" & num_efforts < NUM_NON ~ TRUE,
-               category == "non-cardiovascular" & num_efforts >= NUM_NON ~ FALSE,
-               category == "restorative" & num_efforts < NUM_RESTORE ~ TRUE,
-               category == "restorative" & num_efforts >= NUM_RESTORE ~ FALSE
-           )) %>% 
-    arrange(-behind, days_since_last)
-
-missing_category <- c("cardiovascular", 
-                      "muscular", 
-                      "non-cardiovascular", 
-                      "restorative")
-missing_category <- missing_category[!missing_category %in% category_sum$category]    
-
-tmp <- tibble()
-
-if (length(missing_category) > 0) {
-    tmp <- tibble(category = missing_category,
-                  num_efforts = 0,
-                  last_effort = as_date(NA),
-                  days_since_last = Sys.Date() - (Sys.Date() - days(7)),
-                  behind = TRUE)
-}
-
-category_sum <- bind_rows(category_sum, tmp) %>% 
-    arrange(desc(behind), desc(days_since_last))
+current_rating <- get_current_rating(workout_dates)
 
 # EACH DAY SHOULD EITHER BE CARDIO OR LIFTING OR RECOVERY
 # 0. Even if I am overdue for something else... If I have had heavy strain, 
@@ -118,10 +50,15 @@ category_sum <- bind_rows(category_sum, tmp) %>%
 # 5. If you've already worked out today, you can do a recovery
 
 # If you've worked out today, you can optionally do a recovery
-if (!is.na(min(category_sum$days_since_last)) & min(category_sum$days_since_last) == 0) {
+if (min(category_sum$days_since_last) == 0) {
     
     today_type <- "restorative"
 
+# If I've had too many hard days in a row, prioritize a recovery    
+} else if (current_rating > MAX_DAYS_OVER) {
+    
+    today_type <- "restorative"
+    
 # If muscular and cardio are behind by the same amount of days, choose randomly    
 } else if ((category_sum$behind[category_sum$category == "cardiovascular"] & 
      category_sum$behind[category_sum$category == "muscular"] & 
@@ -160,6 +97,20 @@ if (!is.na(min(category_sum$days_since_last)) & min(category_sum$days_since_last
 } else {
     today_type <- "restorative"
 }
+
+# Now that I know the type, let's name the exercise
+# 1. Restorative can be sauna, yoga, walking
+# 2. Muscular is lifting
+# 3. Cardio is cycling or running (or soccer, but that's handled separately)
+#    If I have been under average for a while, choose running
+
+today_name <- case_when(
+    today_type == "restorative" ~ sample(c("Sauna", "Yoga", "Walking"), 1),
+    today_type == "muscular" ~ "Lifting",
+    today_type == "cardiovascular" & current_rating < MAX_DAYS_UNDER ~ "Running",
+    today_type == "cardiovascular" & current_rating >= MAX_DAYS_UNDER ~ "Cycling"
+)
+
 
 ############################
 ## Is today a soccer day? ##

@@ -699,3 +699,92 @@ get_class_data <- function() {
     
     return(class)
 }
+
+get_workout_dates_data <- function(range_start) {
+    workout_dates <- get_workouts_data() %>% 
+        filter(date >= range_start) %>% 
+        left_join(get_sports(), by = "name") %>% 
+        mutate(new_cat = str_sub(category, 1, 5)) %>% 
+        group_by(date) %>% 
+        summarise(workouts_completed = paste0(name, collapse = " + "),
+                  category = paste0(new_cat, collapse = " + "),
+                  act_strain = sum(raw_intensity_score)) %>% 
+        full_join(get_cycles_data(), by = c("date" = "day_start")) %>% 
+        filter(date >= range_start & 
+                   date <= Sys.Date() - days(1)) %>% 
+        select(date, workouts_completed, category, act_strain, day_strain) %>% 
+        mutate(workouts_completed = ifelse(is.na(workouts_completed), 
+                                           "Other - Recovery",
+                                           workouts_completed),
+               day_strain = ifelse(is.na(day_strain), 0, day_strain * 1000),
+               avg_strain = last_30_day_ma(get_cycles_data(),
+                                           "day_strain",
+                                           "day_start",
+                                           range_start,
+                                           Sys.Date() - days(1)) * 1000,
+               over_avg = ifelse(day_strain >= avg_strain, 1, -1),
+               plus_minus = cumsum(over_avg),
+               category_restore = case_when(
+                   workouts_completed == "Walking" & act_strain < 1 ~ TRUE,
+                   category == "resto" ~ TRUE,
+                   1 == 1 ~ FALSE),
+               category_muscular = ifelse(grepl("muscu", category), TRUE, FALSE),
+               category_cardio = ifelse(grepl("cardi", category), 
+                                        TRUE, FALSE),
+               category_non = ifelse(grepl("non-c", category) & 
+                                         !(workouts_completed == "Walking" & 
+                                               act_strain < 1), TRUE, FALSE))
+    
+    return(workout_dates)
+}
+
+get_category_sum_data <- function(workout_dates) {
+    category_sum <- workout_dates %>% 
+        summarise(restorative = sum(category_restore),
+                  cardiovascular = sum(category_cardio),
+                  `non-cardiovascular` = sum(category_non),
+                  muscular = sum(category_muscular)) %>% 
+        pivot_longer(cols = c("cardiovascular", 
+                              "muscular", 
+                              "non-cardiovascular", 
+                              "restorative"),
+                     names_to = "category",
+                     values_to = "num_efforts") %>% 
+        mutate(behind = case_when(category == "cardiovascular" & num_efforts < NUM_CARDIO ~ TRUE,
+                                  category == "cardiovascular" & num_efforts >= NUM_CARDIO ~ FALSE,
+                                  category == "muscular" & num_efforts < NUM_MUSCULAR ~ TRUE,
+                                  category == "muscular" & num_efforts >= NUM_MUSCULAR ~ FALSE,
+                                  category == "non-cardiovascular" & num_efforts < NUM_NON ~ TRUE,
+                                  category == "non-cardiovascular" & num_efforts >= NUM_NON ~ FALSE,
+                                  category == "restorative" & num_efforts < NUM_RESTORE ~ TRUE,
+                                  category == "restorative" & num_efforts >= NUM_RESTORE ~ FALSE))
+    
+    days_since_last <- tibble(
+        category = c("cardiovascular", 
+                     "muscular", 
+                     "non-cardiovascular", 
+                     "restorative"),
+        last_date = c(max(workout_dates$date[workout_dates$category_cardio == TRUE]),
+                      max(workout_dates$date[workout_dates$category_muscular == TRUE]),
+                      max(workout_dates$date[workout_dates$category_non == TRUE]),
+                      max(workout_dates$date[workout_dates$category_restore == TRUE]))) %>%
+        mutate(last_date = ifelse(is.infinite(last_date), 
+                                  Sys.Date() - days(7),
+                                  last_date),
+               last_date = as_date(last_date),
+               days_since_last = Sys.Date() - last_date)
+    
+    category_sum <- category_sum %>% 
+        left_join(days_since_last, by = "category")
+    
+    return(category_sum)
+}
+
+get_current_rating <- function(workout_dates) {
+    current_rating <- workout_dates %>% 
+        arrange(date) %>% 
+        tail(1) %>% 
+        pull(plus_minus)
+    
+    return(current_rating)
+}
