@@ -36,12 +36,11 @@ workouts <- get_workouts_data() %>%
     filter(date >= range_start) %>% 
     left_join(sports, by = "name")
 
-# Need to distinguish between non-cardio and cardio next
-
 workout_dates <- workouts %>% 
+    mutate(new_cat = str_sub(category, 1, 5)) %>% 
     group_by(date) %>% 
     summarise(workouts_completed = paste0(name, collapse = " + "),
-              category = paste0(category, collapse = " + "),
+              category = paste0(new_cat, collapse = " + "),
               act_strain = sum(raw_intensity_score)) %>% 
     full_join(get_cycles_data(), by = c("date" = "day_start")) %>% 
     filter(date >= range_start & 
@@ -58,12 +57,12 @@ workout_dates <- workouts %>%
                                 0),
            category_restore = case_when(
                workouts_completed == "Walking" & act_strain < 1 ~ TRUE,
-               category == "restorative" ~ TRUE,
+               category == "resto" ~ TRUE,
                1 == 1 ~ FALSE),
-           category_muscular = ifelse(grepl("muscular", category), TRUE, FALSE),
-           category_cardio = ifelse(grepl("cardiovascular", category), 
+           category_muscular = ifelse(grepl("muscu", category), TRUE, FALSE),
+           category_cardio = ifelse(grepl("cardi", category), 
                                     TRUE, FALSE),
-           category_non = ifelse(grepl("non-cardiovascular", category) & 
+           category_non = ifelse(grepl("non-c", category) & 
                                      !(workouts_completed == "Walking" & 
                                            act_strain < 1), TRUE, FALSE))
 
