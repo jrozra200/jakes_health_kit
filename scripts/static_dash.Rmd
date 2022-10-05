@@ -39,7 +39,7 @@ wo_windows <- get_wo_windows(events)
 # GET WORK OUT DATA
 wo <- get_wo_schedule_data()
 todays_wo <- get_todays_wo()
-wo_message <- get_wo_message(todays_wo, wo_window_num)
+wo_message <- get_wo_message(todays_wo, wo_window_num, wo_windows)
 
 # GET CYCLES DATA
 cycles <- get_cycles_data()
@@ -66,16 +66,23 @@ sleep <- get_sleep_data()
 Today
 =====================================
 
-Row {.tabset .tabset-fade}
+Row
 -----------------------------------------------------------------------
 
-### Today
-
-#### Today's Workout: `r todays_wo`.
+### Today's Workout: `r todays_wo`.
 
 `r wo_message`
 
-```{r, out.width = "80%", fig.height = 1, fig.retina = 6, fig.align = 'center'}
+### Today's Messages
+
+Here is where I should highlight any issues. 
+
+Row
+-----------------------------------------------------------------------
+
+### Today's Strain
+
+```{r, out.width = "100%", fig.height = 1, fig.retina = 6, fig.align = 'center'}
 # If today's workout(s) has not happened yet, add it into the graph to show the expected
 expected_strain <- get_expected_strain_data(todays_wo, 
                                             todays_workouts, 
@@ -84,22 +91,6 @@ expected_strain <- get_expected_strain_data(todays_wo,
 plot_data <- get_todays_strain_plot_data(cycles_plot, expected_strain)
 
 plot_todays_strain(plot_data)
-```
-
-### Today's Calendar
-
-Here are the events for today. 
-
-```{r}
-present_table(events)
-```
-
-### Workout Schedule
-
-This will be the workout schedule for the week.
-
-```{r}
-present_table(wo)
 ```
 
 Health Data 

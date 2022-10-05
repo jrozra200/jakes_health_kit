@@ -148,7 +148,7 @@ get_wo_windows <- function(events) {
         
         wo_windows <- free_time %>% 
             filter(length >= 60) %>% 
-            mutate(wo_windows = paste0(start, "-", end)) %>% 
+            mutate(wo_windows = paste0(start, " - ", end)) %>% 
             pull(wo_windows) %>% 
             paste0(collapse = "; ")
     } else {
@@ -190,7 +190,7 @@ get_todays_wo_data <- function(wo) {
 
 ## Workout Availability
 
-get_wo_message <- function(todays_wo, wo_window_num) {
+get_wo_message <- function(todays_wo, wo_window_num, wo_windows) {
     if (grepl("Soccer", todays_wo)) {
         soccer <- read_csv("../data/futbol_schedule.csv") %>% 
             filter(as_date(datetime) == Sys.Date())
@@ -201,16 +201,16 @@ get_wo_message <- function(todays_wo, wo_window_num) {
         if (grepl("\\+ Walk", todays_wo)) {
             wo_message <- paste0(wo_message, " You also have ", wo_window_num, 
                                  " window(s) long enough to get your walk in today.",
-                                 " Try to get your walk in during these windows: ",
-                                 wo_windows)
+                                 "\n\nTry to get your walk in during these windows:\n\t",
+                                 wo_windows, ".\n\n")
         }
     } else {
         wo_message <- paste0("You have ", wo_window_num, " window(s) long enough ", 
-                             "to get your workout in today. Try to get your time ", 
-                             "in during these windows: ", wo_windows)
+                             "to get your workout in today.\n\nTry to get your time ", 
+                             "in during these windows:\n\t", wo_windows, ".\n\n")
         
         if (grepl("\\+ Walk", todays_wo)) {
-            wo_message <- paste0(wo_message, " Don't forget... you also have to ", 
+            wo_message <- paste0(wo_message, "\n\nDon't forget... you also have to ", 
                                  "get your walk with Poppy in today.")
         }
     }
