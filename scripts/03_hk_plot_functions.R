@@ -293,12 +293,14 @@ workout_facet_plot <- function(dat) {
         geom_text(aes(label = dotw, y = label_bump),
                   size = LIT_LABEL_SIZE) + 
         # Add a label for the percentage of average I've done
-        geom_text(aes(label = percent((raw_intensity_score - avg_strain) / avg_strain, 
+        geom_text(aes(label = percent((raw_intensity_score / avg_strain) - 1, 
                                       accuracy = 0.01), 
                       y = label_y - label_bump),
                   size = LIT_LABEL_SIZE) +
         # Add commas to the labels
         scale_y_continuous(labels = comma_format()) + 
+        # Add better colors 
+        scale_fill_brewer(palette = "Blues") + 
         # Theme the shit
         theme(panel.background = element_blank(),
               axis.title = element_blank(),
