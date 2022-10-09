@@ -3,14 +3,17 @@
 ## Strain ##
 # 1. Day Strain (cycles: day_strain)
 get_anomoly_data <- function(dat, var, date_var) { 
+    
     dat_sum <- dat %>% 
+        arrange(desc(get(date_var))) %>% 
         group_by(dotw)  %>% 
-        summarise(avg_strain = rollmean(get(var), 
+        mutate(new_day_strain = lead(day_strain, 1)) %>% 
+        summarise(avg_strain = rollmean(new_day_strain,
                                         10, 
                                         align = "left", 
                                         fill = NA, 
                                         na.rm = TRUE),
-                  sd_strain = rollapply(get(var),
+                  sd_strain = rollapply(new_day_strain,
                                         10,
                                         align = "left",
                                         fill = NA,
@@ -34,62 +37,100 @@ get_anomoly_data <- function(dat, var, date_var) {
         filter(date < Sys.Date()) %>% 
         left_join(dat_sum, by = "date") %>% 
         select(date, avg_strain, sd_strain, var) %>% 
-        arrange(date) %>% 
-        mutate(normp = pnorm(get(var), 
+        arrange(desc(date)) %>% 
+        mutate(new_day_strain = lead(get(var), 1),
+               today_greater = ifelse(get(var) > new_day_strain, 1, -1),
+               three_day_trend = rollsum(today_greater,
+                                         3,
+                                         align = "left",
+                                         fill = NA,
+                                         na.rm = TRUE),
+               alert_tdt = ifelse(three_day_trend == 3 |
+                                      three_day_trend == -3, 
+                                  TRUE,
+                                  FALSE),
+               normp = pnorm(get(var), 
                              mean = avg_strain, 
                              sd = sd_strain),
-               ma_3 = NA,
-               ou_1_3 = NA,
-               ma_7 = NA,
-               ou_1_7 = NA,
-               ou_3_7 = NA,
-               ma_14 = NA,
-               ou_1_14 = NA,
-               ou_3_14 = NA,
-               ou_7_14 = NA,
-               ma_30 = NA,
-               ou_1_30 = NA,
-               ou_3_30 = NA,
-               ou_7_30 = NA,
-               ou_14_30 = NA,
-               percent_dif_10_week = (get(var) / avg_strain) - 1)
-    
-    for(rown in 2:length(dat_anom$date)) {
-        end <- ifelse((rown - 1) <= 0, 1, rown - 1)
-        three_start <- ifelse((rown - 3) <= 0, 1, rown - 3)
-        seven_start <- ifelse((rown - 7) <= 0, 1, rown - 7)
-        ft_start <- ifelse((rown - 14) <= 0, 1, rown - 14)
-        thirty_start <- ifelse((rown - 30) <= 0, 1, rown - 30)
-        
-        last_val <- dat_anom %>% 
-            slice(end:end) %>% 
-            pull(var)
-        current_val <- dat_anom %>% 
-            slice(rown:rown) %>% 
-            pull(var)
-        
-        dat_anom$ma_3[rown] <- mean(dat_anom %>% 
-                                        slice(three_start:end) %>% 
-                                        pull(var), 
-                                    na.rm = TRUE)
-        dat_anom$ma_7[rown] <- mean(dat_anom %>% 
-                                        slice(seven_start:end) %>% 
-                                        pull(var), 
-                                    na.rm = TRUE)
-        dat_anom$ma_14[rown] <- mean(dat_anom %>% 
-                                         slice(ft_start:end) %>% 
-                                         pull(var), 
-                                     na.rm = TRUE)
-        dat_anom$ma_30[rown] <- mean(dat_anom %>% 
-                                         slice(thirty_start:end) %>% 
-                                         pull(var), 
-                                     na.rm = TRUE)
-    }
+               ma_3 = rollmean(new_day_strain,
+                               3, 
+                               align = "left", 
+                               fill = NA, 
+                               na.rm = TRUE),
+               ou_1_3 = ifelse(get(var) > ma_3, TRUE, FALSE),
+               ma_7 = rollmean(new_day_strain,
+                               7, 
+                               align = "left", 
+                               fill = NA, 
+                               na.rm = TRUE),
+               ou_1_7 = ifelse(get(var) > ma_7, TRUE, FALSE),
+               ou_3_7 = ifelse(ma_3 > ma_7, TRUE, FALSE),
+               ma_14 = rollmean(new_day_strain,
+                                14, 
+                                align = "left", 
+                                fill = NA, 
+                                na.rm = TRUE),
+               ou_1_14 = ifelse(get(var) > ma_14, TRUE, FALSE),
+               ou_3_14 = ifelse(ma_3 > ma_14, TRUE, FALSE),
+               ou_7_14 = ifelse(ma_7 > ma_14, TRUE, FALSE),
+               ma_30 = rollmean(new_day_strain,
+                                30, 
+                                align = "left", 
+                                fill = NA, 
+                                na.rm = TRUE),
+               ou_1_30 = ifelse(get(var) > ma_30, TRUE, FALSE),
+               three_day_trend_30 = rollsum(today_greater,
+                                            3,
+                                            align = "left",
+                                            fill = NA,
+                                            na.rm = TRUE),
+               alert_tdt_30 = ifelse(three_day_trend_30 == 3 |
+                                         three_day_trend_30 == -3, 
+                                     TRUE,
+                                     FALSE),
+               ou_3_30 = ifelse(ma_3 > ma_30, TRUE, FALSE),
+               ou_7_30 = ifelse(ma_7 > ma_30, TRUE, FALSE),
+               ou_14_30 = ifelse(ma_14 > ma_30, TRUE, FALSE),
+               percent_dif_10_week = (get(var) / avg_strain) - 1,
+               npdtw = lead(percent_dif_10_week, 1),
+               lq_pdtw = as.numeric(
+                   rollapply(npdtw,
+                             width = 10000,
+                             FUN = quantile,
+                             probs = 0.25,
+                             na.rm = TRUE,
+                             align = "left",
+                             partial = TRUE,
+                             fill = NA)),
+               uq_pdtw = as.numeric(
+                   rollapply(npdtw,
+                             width = 10000,
+                             FUN = quantile,
+                             probs = 0.75,
+                             na.rm = TRUE,
+                             align = "left",
+                             partial = TRUE,
+                             fill = NA)),
+               alert_diff_10_week = ifelse(
+                   get(var) < lq_pdtw | 
+                       get(var) > uq_pdtw,
+                   TRUE, 
+                   FALSE))
     
     return(dat_anom)
 }
 
 dat_anom <- get_anomoly_data(cycles, "day_strain", "day_start")
+
+dat_anom %>% 
+    filter(alert_tdt | 
+               alert_tdt_30 | 
+               alert_diff_10_week) %>% 
+    select(date,
+           day_strain,
+           alert_tdt,
+           alert_tdt_30,
+           alert_diff_10_week)
 
 plot_dat1 <- dat_anom %>% 
     filter(date >= Sys.Date() - days(7)) %>% 
