@@ -77,6 +77,65 @@ Row
 
 Here is where I should highlight any issues. 
 
+```{r}
+## Strain ##
+# 1. Day Strain (cycles: day_strain)
+# 2. Calories (cycles: day_cal)
+## Recovery ##
+# 3. Heart Rate Variability (recovery: hrv_rmssd)
+# 4. Resting Heart Rate (recovery: resting_heart_rate)
+# 5. Skin Temp (recovery: skin_temp_f)
+# 6. SpO2 (recovery: spo2)
+## Sleep ##
+# 7. Total Sleep (sleep: total_sleep)
+# 8. Latency (sleep: latency)
+# 9. Light Sleep Duration (sleep: light_sleep_duration)
+# 10. Slow Wave Sleep Duration (sleep: slow_wave_sleep_duration)
+# 11. REM Sleep Duration (sleep: rem_sleep_duration)
+# 12. Wake Duration (sleep: wake_duration)
+# 13. Cycles Count (sleep: cycles_count)
+# 14. Disturbances (sleep: disturbances)
+# 15. Respiratory Rate (sleep: respiratory_rate)
+## Workouts ##
+# 16. Strain for yesterday's workout(s) (workout: raw_intensity_score)
+
+tracked_measures <- tibble(
+    dat = c(rep("cycles", 2),
+                 rep("recovery", 4),
+                 rep("sleep", 9)),
+    var = c("day_strain",
+             "day_cal",
+             "hrv_rmssd",
+             "resting_heart_rate",
+             "skin_temp_f",
+             "spo2",
+             "total_sleep",
+             "latency",
+             "light_sleep_duration",
+             "slow_wave_sleep_duration",
+             "rem_sleep_duration",
+             "wake_duration",
+             "cycles_count",
+             "disturbances",
+             "respiratory_rate"),
+    date_var = c(rep("date", 2),
+                 rep("date", 4),
+                 rep("date", 9))
+)
+
+anom_dat <- tracked_measures %>% 
+        pmap_dfr(get_anomoly_data) %>% 
+    filter(date == Sys.Date() - days(1) & 
+               (alert_tdt_avg == TRUE | 
+                    alert_tdt == TRUE | 
+                    alert_tdt_30 == TRUE | 
+                    alert_diff_10_week == TRUE )) %>% 
+    select(date, variable, message)
+
+present_table(anom_dat)
+
+```
+
 Row
 -----------------------------------------------------------------------
 

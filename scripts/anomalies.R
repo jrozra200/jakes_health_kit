@@ -1,5 +1,79 @@
 # Monitor Metrics on the following: 
 
+get_anomaly_message <- function(dat_anom, df, var, date_var) {
+    
+    yest_dat <- get(dat_anom) %>% 
+        filter(get(date_var) == Sys.Date() - days(1) & 
+                   variable == var &
+                   df == df)
+    
+    alert_tdt_avg <- if (yest_dat$alert_tdt_avg[1] == TRUE) {
+        if (yest_dat$three_day_trend_avg[1] > 0) {
+            paste0("You have had 3 days in a row OVER the daily average ",
+                   "(previous 10 weeks for that day of the week - i.e.: this ",
+                   "previous Monday was compared to the 10 week average only ",
+                   "for Mondays) for ", var, ".")
+        } else {
+            paste0("You have had 3 days in a row UNDER the daily average ",
+                   "(previous 10 weeks for that day of the week - i.e.: this ",
+                   "previous Monday was compared to the 10 week average only ",
+                   "for Mondays) for ", var, ".")
+        }
+    } else {
+        NA
+    }
+    
+    alert_tdt <- if (yest_dat$alert_tdt[1] == TRUE) {
+        if (yest_dat$three_day_trend[1] > 0) {
+            paste0("Each day over the past 3 days, you've INCREASED your amount", 
+                   " of ", var, " (three days ago was less than two days ago ",
+                   "which was less than yesterday).")
+        } else {
+            paste0("Each day over the past 3 days, you've DECREASED your amount", 
+                   " of ", var, " (three days ago was more than two days ago ",
+                   "which was more than yesterday).")
+        }
+    } else {
+        NA
+    }
+    
+    alert_tdt_30 <- if (yest_dat$alert_tdt_30[1] == TRUE) {
+        if (yest_dat$three_day_trend_30[1] > 0) {
+            paste0("You have had 3 days in a row OVER the 30 day moving ",
+                   "average (average of previous 30 days) for ", var, ".")
+        } else {
+            paste0("You have had 3 days in a row UNDER the 30 day moving ",
+                   "average (average of previous 30 days) for ", var, ".")
+        }
+    } else {
+        NA
+    }
+    
+    alert_diff_10_week <- if (yest_dat$alert_diff_10_week[1] == TRUE) {
+        if (yest_dat$percent_dif_10_week[1] > 0) {
+            paste0("You have EXCEEDED the 75th percentile for ", var, ".")
+        } else {
+            paste0("You were UNDER the 25th percentile for ", var, ".")
+        }
+    } else {
+        NA
+    }
+    
+    message <- tibble(
+        df = df,
+        variable = var,
+        alert = c("alert_tdt_avg", 
+                  "alert_tdt", 
+                  "alert_tdt_30", 
+                  "alert_diff_10_week"),
+        messages = c(alert_tdt_avg, 
+                     alert_tdt, 
+                     alert_tdt_30, 
+                     alert_diff_10_week)) %>% 
+        filter(!is.na(messages))
+    
+    return(message)
+}
 
 
 dat_anom %>% 
