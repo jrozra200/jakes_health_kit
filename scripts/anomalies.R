@@ -2,134 +2,241 @@
 
 ## Strain ##
 # 1. Day Strain (cycles: day_strain)
-get_anomoly_data <- function(dat, var, date_var) { 
+get_anomoly_data <- function(dat, vars, date_var) { 
     
-    dat_sum <- dat %>% 
-        arrange(desc(get(date_var))) %>% 
-        group_by(dotw)  %>% 
-        mutate(new_day_strain = lead(day_strain, 1)) %>% 
-        summarise(avg_strain = rollmean(new_day_strain,
-                                        10, 
-                                        align = "left", 
-                                        fill = NA, 
-                                        na.rm = TRUE),
-                  sd_strain = rollapply(new_day_strain,
-                                        10,
-                                        align = "left",
-                                        fill = NA,
-                                        na.rm = TRUE,
-                                        FUN = sd),
-                  date = rollmax(get(date_var), 
-                                 10, 
-                                 align = "left", 
-                                 fill = NA, 
-                                 na.rm = TRUE)) 
+    final_dat <- tibble()
     
-    # If you've been below the 30 day moving average for so many days in a row, alert
-    # If you've been above the 30 day moving average for so many days in a row, alert
-    # If you've trended negative for so many days in a row, alert
-    # If you've trended positive for so many days in a row, alert
-    # If you've exceeded the last 10 week (for this day) moving average by so much, alert
-    # If you've fall below the last 10 week (for this day) moving average by so much, alert
-    
-    dat_anom <- dat %>% 
-        rename(date = date_var) %>% 
-        filter(date < Sys.Date()) %>% 
-        left_join(dat_sum, by = "date") %>% 
-        select(date, avg_strain, sd_strain, var) %>% 
-        arrange(desc(date)) %>% 
-        mutate(new_day_strain = lead(get(var), 1),
-               today_greater = ifelse(get(var) > new_day_strain, 1, -1),
-               three_day_trend = rollsum(today_greater,
-                                         3,
-                                         align = "left",
-                                         fill = NA,
-                                         na.rm = TRUE),
-               alert_tdt = ifelse(three_day_trend == 3 |
-                                      three_day_trend == -3, 
-                                  TRUE,
-                                  FALSE),
-               normp = pnorm(get(var), 
-                             mean = avg_strain, 
-                             sd = sd_strain),
-               ma_3 = rollmean(new_day_strain,
-                               3, 
-                               align = "left", 
-                               fill = NA, 
-                               na.rm = TRUE),
-               ou_1_3 = ifelse(get(var) > ma_3, TRUE, FALSE),
-               ma_7 = rollmean(new_day_strain,
-                               7, 
-                               align = "left", 
-                               fill = NA, 
-                               na.rm = TRUE),
-               ou_1_7 = ifelse(get(var) > ma_7, TRUE, FALSE),
-               ou_3_7 = ifelse(ma_3 > ma_7, TRUE, FALSE),
-               ma_14 = rollmean(new_day_strain,
-                                14, 
-                                align = "left", 
-                                fill = NA, 
-                                na.rm = TRUE),
-               ou_1_14 = ifelse(get(var) > ma_14, TRUE, FALSE),
-               ou_3_14 = ifelse(ma_3 > ma_14, TRUE, FALSE),
-               ou_7_14 = ifelse(ma_7 > ma_14, TRUE, FALSE),
-               ma_30 = rollmean(new_day_strain,
-                                30, 
-                                align = "left", 
-                                fill = NA, 
-                                na.rm = TRUE),
-               ou_1_30 = ifelse(get(var) > ma_30, TRUE, FALSE),
-               three_day_trend_30 = rollsum(today_greater,
-                                            3,
+    for (var in vars) {
+        dat_sum <- dat %>% 
+            rename(int_var = var,
+                   date = date_var) %>% 
+            arrange(desc(date)) %>% 
+            group_by(dotw)  %>% 
+            mutate(new_day_strain = lead(int_var, 1)) %>% 
+            summarise(avg_strain = rollmean(new_day_strain,
+                                            10, 
+                                            align = "left", 
+                                            fill = NA, 
+                                            na.rm = TRUE),
+                      sd_strain = rollapply(new_day_strain,
+                                            10,
                                             align = "left",
                                             fill = NA,
-                                            na.rm = TRUE),
-               alert_tdt_30 = ifelse(three_day_trend_30 == 3 |
-                                         three_day_trend_30 == -3, 
-                                     TRUE,
-                                     FALSE),
-               ou_3_30 = ifelse(ma_3 > ma_30, TRUE, FALSE),
-               ou_7_30 = ifelse(ma_7 > ma_30, TRUE, FALSE),
-               ou_14_30 = ifelse(ma_14 > ma_30, TRUE, FALSE),
-               percent_dif_10_week = (get(var) / avg_strain) - 1,
-               npdtw = lead(percent_dif_10_week, 1),
-               lq_pdtw = as.numeric(
-                   rollapply(npdtw,
-                             width = 10000,
-                             FUN = quantile,
-                             probs = 0.25,
-                             na.rm = TRUE,
-                             align = "left",
-                             partial = TRUE,
-                             fill = NA)),
-               uq_pdtw = as.numeric(
-                   rollapply(npdtw,
-                             width = 10000,
-                             FUN = quantile,
-                             probs = 0.75,
-                             na.rm = TRUE,
-                             align = "left",
-                             partial = TRUE,
-                             fill = NA)),
-               alert_diff_10_week = ifelse(
-                   get(var) < lq_pdtw | 
-                       get(var) > uq_pdtw,
-                   TRUE, 
-                   FALSE))
-    
+                                            na.rm = TRUE,
+                                            FUN = sd),
+                      date = rollmax(date, 
+                                     10, 
+                                     align = "left", 
+                                     fill = NA, 
+                                     na.rm = TRUE)) 
+        
+        # If you've been below the 30 day moving average for so many days in a row, alert
+        # If you've been above the 30 day moving average for so many days in a row, alert
+        # If you've trended negative for so many days in a row, alert
+        # If you've trended positive for so many days in a row, alert
+        # If you've exceeded the last 10 week (for this day) moving average upper quartile, alert
+        # If you've fall below the last 10 week (for this day) moving average lower quartile, alert
+        
+        dat_anom <- dat %>% 
+            rename(date = date_var,
+                   int_var = var) %>% 
+            filter(date < Sys.Date()) %>% 
+            left_join(dat_sum, by = "date") %>% 
+            select(date, avg_strain, sd_strain, int_var) %>% 
+            arrange(desc(date)) %>% 
+            mutate(avg_vs_day = ifelse(int_var > avg_strain, 1, -1),
+                   three_day_trend_avg = rollsum(avg_vs_day,
+                                                 3,
+                                                 align = "left",
+                                                 fill = NA,
+                                                 na.rm = TRUE),
+                   alert_tdt_avg = ifelse(three_day_trend_avg == 3 |
+                                              three_day_trend_avg == -3, 
+                                          TRUE,
+                                          FALSE),
+                   new_day_strain = lead(int_var, 1),
+                   today_greater = ifelse(int_var > new_day_strain, 1, -1),
+                   three_day_trend = rollsum(today_greater,
+                                             3,
+                                             align = "left",
+                                             fill = NA,
+                                             na.rm = TRUE),
+                   alert_tdt = ifelse(three_day_trend == 3 |
+                                          three_day_trend == -3, 
+                                      TRUE,
+                                      FALSE),
+                   normp = pnorm(int_var, 
+                                 mean = avg_strain, 
+                                 sd = sd_strain),
+                   ma_3 = rollmean(new_day_strain,
+                                   3, 
+                                   align = "left", 
+                                   fill = NA, 
+                                   na.rm = TRUE),
+                   ou_1_3 = ifelse(int_var > ma_3, TRUE, FALSE),
+                   ma_7 = rollmean(new_day_strain,
+                                   7, 
+                                   align = "left", 
+                                   fill = NA, 
+                                   na.rm = TRUE),
+                   ou_1_7 = ifelse(int_var > ma_7, TRUE, FALSE),
+                   ou_3_7 = ifelse(ma_3 > ma_7, TRUE, FALSE),
+                   ma_14 = rollmean(new_day_strain,
+                                    14, 
+                                    align = "left", 
+                                    fill = NA, 
+                                    na.rm = TRUE),
+                   ou_1_14 = ifelse(int_var > ma_14, TRUE, FALSE),
+                   ou_3_14 = ifelse(ma_3 > ma_14, TRUE, FALSE),
+                   ou_7_14 = ifelse(ma_7 > ma_14, TRUE, FALSE),
+                   ma_30 = rollmean(new_day_strain,
+                                    30, 
+                                    align = "left", 
+                                    fill = NA, 
+                                    na.rm = TRUE),
+                   ou_1_30 = ifelse(int_var > ma_30, 1, -1),
+                   three_day_trend_30 = rollsum(ou_1_30,
+                                                3,
+                                                align = "left",
+                                                fill = NA,
+                                                na.rm = TRUE),
+                   alert_tdt_30 = ifelse(three_day_trend_30 == 3 |
+                                             three_day_trend_30 == -3, 
+                                         TRUE,
+                                         FALSE),
+                   ou_3_30 = ifelse(ma_3 > ma_30, TRUE, FALSE),
+                   ou_7_30 = ifelse(ma_7 > ma_30, TRUE, FALSE),
+                   ou_14_30 = ifelse(ma_14 > ma_30, TRUE, FALSE),
+                   percent_dif_10_week = (int_var / avg_strain) - 1,
+                   npdtw = lead(percent_dif_10_week, 1),
+                   lq_pdtw = as.numeric(
+                       rollapply(npdtw,
+                                 width = 10000,
+                                 FUN = quantile,
+                                 probs = 0.25,
+                                 na.rm = TRUE,
+                                 align = "left",
+                                 partial = TRUE,
+                                 fill = NA)),
+                   uq_pdtw = as.numeric(
+                       rollapply(npdtw,
+                                 width = 10000,
+                                 FUN = quantile,
+                                 probs = 0.75,
+                                 na.rm = TRUE,
+                                 align = "left",
+                                 partial = TRUE,
+                                 fill = NA)),
+                   alert_diff_10_week = ifelse(
+                       percent_dif_10_week < lq_pdtw | 
+                           percent_dif_10_week > uq_pdtw,
+                       TRUE, 
+                       FALSE))
+        
+        names_of_var <- names(dat_anom)
+        names_of_var <- ifelse(names_of_var == "date", date_var, names_of_var)
+        names_of_var <- ifelse(names_of_var == "int_var", var, names_of_var)
+        names(dat_anom) <- names_of_var
+        
+        dat_anom$variable <- var
+        
+        final_dat <- bind_rows(final_dat, dat_anom)
+    }
     return(dat_anom)
 }
 
-dat_anom <- get_anomoly_data(cycles, "day_strain", "day_start")
+dat_anom <- get_anomoly_data(cycles, c("day_strain", "day_cal"), "day_start")
+
+get_anomaly_message <- function(dat_anom, vars, date_var) {
+    
+    message <- tibble()
+    
+    for(var in vars) {
+        
+        yest_dat <- dat_anom %>% 
+            filter(get(date_var) == Sys.Date() - days(1) & 
+                       variable == var)
+        
+        alert_tdt_avg <- if (yest_dat$alert_tdt_avg[1] == TRUE) {
+            if (yest_dat$three_day_trend_avg[1] > 0) {
+                paste0("You have had 3 days in a row OVER the daily average ",
+                       "(previous 10 weeks for that day of the week - i.e.: this ",
+                       "previous Monday was compared to the 10 week average only ",
+                       "for Mondays) for ", var, ".")
+            } else {
+                paste0("You have had 3 days in a row UNDER the daily average ",
+                       "(previous 10 weeks for that day of the week - i.e.: this ",
+                       "previous Monday was compared to the 10 week average only ",
+                       "for Mondays) for ", var, ".")
+            }
+        } else {
+            NA
+        }
+        
+        alert_tdt <- if (yest_dat$alert_tdt[1] == TRUE) {
+            if (yest_dat$three_day_trend[1] > 0) {
+                paste0("Each day over the past 3 days, you've INCREASED your amount", 
+                       " of ", var, " (three days ago was less than two days ago ",
+                       "which was less than yesterday).")
+            } else {
+                paste0("Each day over the past 3 days, you've DECREASED your amount", 
+                       " of ", var, " (three days ago was more than two days ago ",
+                       "which was more than yesterday).")
+            }
+        } else {
+            NA
+        }
+        
+        alert_tdt_30 <- if (yest_dat$alert_tdt_30[1] == TRUE) {
+            if (yest_dat$three_day_trend_30[1] > 0) {
+                paste0("You have had 3 days in a row OVER the 30 day moving ",
+                       "average (average of previous 30 days) for ", var, ".")
+            } else {
+                paste0("You have had 3 days in a row UNDER the 30 day moving ",
+                       "average (average of previous 30 days) for ", var, ".")
+            }
+        } else {
+            NA
+        }
+        
+        alert_diff_10_week <- if (yest_dat$alert_diff_10_week[1] == TRUE) {
+            if (yest_dat$percent_dif_10_week[1] > 0) {
+                paste0("You have EXCEEDED the 75th percentile for ", var, ".")
+            } else {
+                paste0("You were UNDER the 25th percentile for ", var, ".")
+            }
+        } else {
+            NA
+        }
+        
+        var_message <- tibble(
+            variable = var,
+            alert = c("alert_tdt_avg", 
+                      "alert_tdt", 
+                      "alert_tdt_30", 
+                      "alert_diff_10_week"),
+            messages = c(alert_tdt_avg, 
+                         alert_tdt, 
+                         alert_tdt_30, 
+                         alert_diff_10_week)
+        ) %>% 
+            filter(!is.na(messages))
+        
+        message <- bind_rows(message, var_message)
+    }
+    return(message)
+}
+
+get_anomaly_message(dat_anom, c("day_strain", "day_cal"), "day_start")
 
 dat_anom %>% 
-    filter(alert_tdt | 
-               alert_tdt_30 | 
-               alert_diff_10_week) %>% 
-    select(date,
+    select(day_start,
            day_strain,
-           alert_tdt,
-           alert_tdt_30,
+           avg_strain,
+           percent_dif_10_week,
+           npdtw,
+           lq_pdtw,
+           uq_pdtw,
            alert_diff_10_week)
 
 plot_dat1 <- dat_anom %>% 
@@ -220,15 +327,6 @@ ggplot(plot_dat, aes(x = day_start)) +
           panel.border = element_rect(fill = NA, color = "black"))
 
 
-
-library(scales)
-
-# If you've been below the 30 day moving average for so many days in a row, alert
-# If you've been above the 30 day moving average for so many days in a row, alert
-# If you've trended negative for so many days in a row, alert
-# If you've trended positive for so many days in a row, alert
-# If you've exceeded the last 10 week (for this day) moving average by so much, alert
-# If you've fall below the last 10 week (for this day) moving average by so much, alert
 
 
 # 2. Calories (cycles: day_cal)
