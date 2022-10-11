@@ -75,8 +75,6 @@ Row
 
 ### Today's Messages
 
-Here is where I should highlight any issues. 
-
 ```{r}
 ## Strain ##
 # 1. Day Strain (cycles: day_strain)
@@ -99,42 +97,30 @@ Here is where I should highlight any issues.
 ## Workouts ##
 # 16. Strain for yesterday's workout(s) (workout: raw_intensity_score)
 
-tracked_measures <- tibble(
-    dat = c(rep("cycles", 2),
-                 rep("recovery", 4),
-                 rep("sleep", 9)),
-    var = c("day_strain",
-             "day_cal",
-             "hrv_rmssd",
-             "resting_heart_rate",
-             "skin_temp_f",
-             "spo2",
-             "total_sleep",
-             "latency",
-             "light_sleep_duration",
-             "slow_wave_sleep_duration",
-             "rem_sleep_duration",
-             "wake_duration",
-             "cycles_count",
-             "disturbances",
-             "respiratory_rate"),
-    date_var = c(rep("date", 2),
-                 rep("date", 4),
-                 rep("date", 9))
-)
+tracked_measures <- get_tracked_measures()
 
 anom_dat <- tracked_measures %>% 
         pmap_dfr(get_anomoly_data) %>% 
-    filter(date == Sys.Date() & 
+    filter(((date == Sys.Date() & 
+               (df == "recovery" | 
+                    df == "sleep")) | 
+                (date == Sys.Date() - days(1) & 
+                     df == "cycles")) & 
                (alert_tdt_avg == TRUE | 
                     alert_tdt == TRUE | 
                     alert_tdt_30 == TRUE | 
                     alert_diff_10_week == TRUE )) %>% 
     select(date, variable, message)
 
-present_table(anom_dat)
-
+if (dim(anom_dat)[1] == 0) {
+    anom_mess <- "There are no alerts for today."
+} else {
+    anom_mess <- ""
+    present_table(anom_dat)
+}
 ```
+
+`r anom_mess`
 
 Row
 -----------------------------------------------------------------------

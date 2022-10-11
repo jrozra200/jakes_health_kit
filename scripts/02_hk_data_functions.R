@@ -959,7 +959,11 @@ get_anomoly_data <- function(dat, var, date_var) {
     dat_anom <- get(dat) %>% 
         rename(date = date_var,
                int_var = var) %>% 
-        filter(date < Sys.Date()) %>% # NEED TO REVISIT THIS BIT
+        filter(((date <= Sys.Date() & 
+                     (dat == "recovery" | 
+                          dat == "sleep")) | 
+                    (date <= Sys.Date() - days(1) & 
+                         dat == "cycles"))) %>% 
         left_join(dat_sum, by = "date") %>% 
         select(date, avg_strain, sd_strain, int_var) %>% 
         arrange(desc(date)) %>% 
@@ -1103,3 +1107,30 @@ get_anomoly_data <- function(dat, var, date_var) {
     return(dat_anom)
 }
 
+get_tracked_measures <- function() {
+    return(
+        tibble(
+            dat = c(rep("cycles", 2),
+                    rep("recovery", 4),
+                    rep("sleep", 9)),
+            var = c("day_strain",
+                    "day_cal",
+                    "hrv_rmssd",
+                    "resting_heart_rate",
+                    "skin_temp_f",
+                    "spo2",
+                    "total_sleep",
+                    "latency",
+                    "light_sleep_duration",
+                    "slow_wave_sleep_duration",
+                    "rem_sleep_duration",
+                    "wake_duration",
+                    "cycles_count",
+                    "disturbances",
+                    "respiratory_rate"),
+            date_var = c(rep("date", 2),
+                         rep("date", 4),
+                         rep("date", 9))
+        )
+    )
+}
