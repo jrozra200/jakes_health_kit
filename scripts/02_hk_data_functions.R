@@ -718,6 +718,9 @@ get_workout_dates_data <- function(range_start) {
         mutate(workouts_completed = ifelse(is.na(workouts_completed), 
                                            "Other - Recovery",
                                            workouts_completed),
+               category = ifelse(is.na(category), 
+                                 str_sub("restorative", 1, 5),
+                                 category),
                day_strain = ifelse(is.na(day_strain), 0, day_strain * 1000),
                avg_strain = last_30_day_ma(get_cycles_data(),
                                            "day_strain",
@@ -846,6 +849,11 @@ get_todays_wo <- function() {
         
         today_type <- "restorative"
         
+        # If restorative is behind, then restore
+    } else if (category_sum$behind[category_sum$category == "restorative"]) {
+        
+        today_type <- "restorative"
+        
         # If muscular and cardio are behind by the same amount of days, choose randomly    
     } else if ((category_sum$behind[category_sum$category == "cardiovascular"] & 
                 category_sum$behind[category_sum$category == "muscular"] & 
@@ -857,16 +865,20 @@ get_todays_wo <- function() {
         # If muscular and cardio are behind but cardio by more days, choose cardio    
     } else if (category_sum$behind[category_sum$category == "cardiovascular"] & 
                category_sum$behind[category_sum$category == "muscular"] & 
-               (category_sum$num_efforts[category_sum$category == "cardiovascular"] > 
-                category_sum$num_efforts[category_sum$category == "muscular"])) {
+               ((NUM_CARDIO - 
+                 category_sum$num_efforts[category_sum$category == "cardiovascular"]) > 
+                (NUM_MUSCULAR - 
+                 category_sum$num_efforts[category_sum$category == "muscular"]))) {
         
         today_type <- "cardiovascular"
         
         # If muscular and cardio are behind but muscular by more days, choose muscular
     } else if (category_sum$behind[category_sum$category == "cardiovascular"] & 
                category_sum$behind[category_sum$category == "muscular"] & 
-               (category_sum$num_efforts[category_sum$category == "cardiovascular"] < 
-                category_sum$num_efforts[category_sum$category == "muscular"])) {
+               ((NUM_CARDIO - 
+                 category_sum$num_efforts[category_sum$category == "cardiovascular"]) < 
+                (NUM_MUSCULAR - 
+                 category_sum$num_efforts[category_sum$category == "muscular"]))) {
         
         today_type <- "muscular"
         

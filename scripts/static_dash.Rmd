@@ -37,7 +37,7 @@ wo_window_num <- get_wo_windows_num(events)
 wo_windows <- get_wo_windows(events)
 
 # GET WORK OUT DATA
-wo <- get_wo_schedule_data()
+# wo <- get_wo_schedule_data()
 todays_wo <- get_todays_wo()
 wo_message <- get_wo_message(todays_wo, wo_window_num, wo_windows)
 
