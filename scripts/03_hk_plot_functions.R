@@ -123,7 +123,7 @@ line_plot <- function(data,
 }
 
 plot_todays_strain <- function(plot_data) {
-    ggplot(plot_data, aes(x = day_start)) +
+    ggplot(plot_data, aes(x = date)) +
         geom_bar(aes(y = additional_strain), 
                  stat = "identity", 
                  fill = MAIN_HEX, 
@@ -174,7 +174,7 @@ strain_bar <- function(dat, var, avg_var, title) {
         max()
     label_bump <- max_data * 0.025
     
-    plot <- ggplot(dat, aes(x = day_start)) +
+    plot <- ggplot(dat, aes(x = date)) +
         # Add a bar for the variable of concern
         geom_bar(aes(y = get(var)), 
                  stat = "identity",

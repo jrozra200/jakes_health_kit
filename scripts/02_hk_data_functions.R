@@ -345,8 +345,8 @@ get_workouts_data <- function() {
     workouts <- workouts %>% 
         bind_cols(
             as_tibble(do.call(rbind, str_split(workouts$during, ","))) %>% 
-                mutate(wo_start = as_datetime(V1, format = "['%Y-%m-%dT%H:%M:%OSZ'"),
-                       wo_end = as_datetime(V2, format = "'%Y-%m-%dT%H:%M:%OSZ')")) %>% 
+                mutate(wo_start = as_datetime(V1, format = "['%Y-%m-%dT%H:%M:%OSZ'") - hours(4),
+                       wo_end = as_datetime(V2, format = "'%Y-%m-%dT%H:%M:%OSZ')") - hours(4)) %>% 
                 select(wo_start,
                        wo_end)
         ) %>% 
@@ -516,7 +516,7 @@ get_sleep_plot_data <- function(sleep) {
                                      align = "left", 
                                      fill = NA, 
                                      na.rm = TRUE),
-                  date = rollmax(day_start, 
+                  date = rollmax(date, 
                                  10, 
                                  align = "left", 
                                  fill = NA, 
@@ -525,8 +525,8 @@ get_sleep_plot_data <- function(sleep) {
     cycles_plot <- cycles %>%
         head(10) %>% 
         left_join(cycles_sum, by = c("dotw" = "dotw", 
-                                     "day_start" = "date")) %>% 
-        select(day_start, 
+                                     "date" = "date")) %>% 
+        select(date, 
                day_strain,
                scaled_strain,
                day_kilojoules,
@@ -567,7 +567,7 @@ get_expected_strain_data <- function(todays_wo, todays_workouts, avg_workout) {
 get_todays_strain_plot_data <- function(cycles_plot, expected_strain) {
     plot_data <- cycles_plot %>% 
         head(1)  %>% 
-        select(day_start,
+        select(date,
                day_strain, 
                avg_strain, 
                dotw)%>% 
@@ -711,7 +711,7 @@ get_workout_dates_data <- function(range_start) {
         summarise(workouts_completed = paste0(name, collapse = " + "),
                   category = paste0(new_cat, collapse = " + "),
                   act_strain = sum(raw_intensity_score)) %>% 
-        full_join(get_cycles_data(), by = c("date" = "day_start")) %>% 
+        full_join(get_cycles_data(), by = c("date" = "date")) %>% 
         filter(date >= range_start & 
                    date <= Sys.Date() - days(1)) %>% 
         select(date, workouts_completed, category, act_strain, day_strain) %>% 
@@ -721,7 +721,7 @@ get_workout_dates_data <- function(range_start) {
                day_strain = ifelse(is.na(day_strain), 0, day_strain * 1000),
                avg_strain = last_30_day_ma(get_cycles_data(),
                                            "day_strain",
-                                           "day_start",
+                                           "date",
                                            range_start,
                                            Sys.Date() - days(1)) * 1000,
                over_avg = ifelse(day_strain >= avg_strain, 1, -1),
@@ -959,7 +959,7 @@ get_anomoly_data <- function(dat, var, date_var) {
     dat_anom <- get(dat) %>% 
         rename(date = date_var,
                int_var = var) %>% 
-        filter(date < Sys.Date()) %>% 
+        filter(date < Sys.Date()) %>% # NEED TO REVISIT THIS BIT
         left_join(dat_sum, by = "date") %>% 
         select(date, avg_strain, sd_strain, int_var) %>% 
         arrange(desc(date)) %>% 

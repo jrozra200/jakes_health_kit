@@ -125,7 +125,7 @@ tracked_measures <- tibble(
 
 anom_dat <- tracked_measures %>% 
         pmap_dfr(get_anomoly_data) %>% 
-    filter(date == Sys.Date() - days(1) & 
+    filter(date == Sys.Date() & 
                (alert_tdt_avg == TRUE | 
                     alert_tdt == TRUE | 
                     alert_tdt_30 == TRUE | 
@@ -292,8 +292,7 @@ Row {.tabset .tabset-fade}
 ### Strain Trends
 
 ```{r, out.width = "100%", fig.retina = 6}
-plot_dat <- get_recovery_trendz_data(cycles %>% 
-                                         rename(date = day_start), 
+plot_dat <- get_recovery_trendz_data(cycles, 
                                      c("day_strain", 
                                        "day_cal"), 
                                      c(3, 7, 14, 30)) %>% 
