@@ -110,7 +110,13 @@ anom_dat <- tracked_measures %>%
                     alert_tdt == TRUE | 
                     alert_tdt_30 == TRUE | 
                     alert_diff_10_week == TRUE )) %>% 
-    select(date, variable, message)
+    select(date, 
+           variable, 
+           alert_tdt_avg, 
+           alert_tdt, 
+           alert_tdt_30, 
+           alert_diff_10_week, 
+           message)
 
 if (dim(anom_dat)[1] == 0) {
     anom_mess <- "There are no alerts for today."
@@ -147,9 +153,19 @@ Row {.tabset .tabset-fade}
 ### Day Strain
 
 ```{r, out.width = "100%", fig.retina = 6}
-strain <- strain_bar(cycles_plot, "day_strain", "avg_strain", "Daily Strain")
+strain <- strain_bar(cycles_plot, 
+                     "day_strain", 
+                     "avg_strain", 
+                     "lq_strain", 
+                     "uq_strain", 
+                     "Daily Strain")
 
-cal <- strain_bar(cycles_plot, "day_cal", "avg_cal", "Daily Calories")
+cal <- strain_bar(cycles_plot, 
+                  "day_cal", 
+                  "avg_cal", 
+                  "lq_cal",
+                  "uq_cal",
+                  "Daily Calories")
 
 grid.arrange(strain, cal, ncol = 1)
 ```
@@ -172,12 +188,16 @@ spo2 <- line_plot(recovery, "spo2", "date", "SpO2")
 grid.arrange(rhr, hrv, temp, spo2, nrow = 2)
 ```
 
-### Sleep
+### Sleep Percents
 
 ```{r, fig.retina = 6}
 # Sleep Area 
-sleep_area <- sleep_area_plot(sleep)
+sleep_area_plot(sleep)
+```
 
+### Sleep Metrics
+
+```{r, fig.retina = 6}
 # total_sleep
 total_sleep <- line_plot(sleep, 
                          "total_sleep", 
@@ -243,12 +263,10 @@ rr <- line_plot(sleep,
                 "Respiratory Rate",
                 super_little_label_size = TRUE)
 
-grid.arrange(sleep_area, 
-             grid.arrange(total_sleep, latency, light_sleep_duration, 
-                          slow_wave_sleep_duration, rem_sleep_duration, 
-                          wake_duration, cycles_count, disturbances, rr, 
-                          ncol = 3), 
-             ncol = 1)
+grid.arrange(total_sleep, latency, light_sleep_duration, 
+             slow_wave_sleep_duration, rem_sleep_duration, 
+             wake_duration, cycles_count, disturbances, rr, 
+             ncol = 3)
 ```
 
 ### Workouts from this Week

@@ -17,7 +17,7 @@ line_plot <- function(data,
                       super_little_label_size = NULL) {
     # Calculate the ranges for the plot
     range_data <- data %>% 
-        head(10) %>%
+        head(31) %>%
         summarise(minimum = min(get(yvar)),
                   maximum = max(get(yvar)),
                   average = mean(get(yvar))) %>% 
@@ -26,11 +26,38 @@ line_plot <- function(data,
                label_pos = minimum - ((maximum - minimum) / 12),
                label_bump = (maximum - minimum) * 0.05)
     
-    # Get the 30 day mean
+    # Get the 30 day ma
     mean_var <- data %>% 
-        slice(2:31) %>% 
-        pull(get(yvar)) %>% 
-        mean()
+        mutate(shift_yvar = lead(get(yvar), 1),
+               ma_30 = rollmean(shift_yvar, 
+                                30, 
+                                fill = NA,
+                                na.rm = TRUE,
+                                align = "left"),
+               uq_30 = rollapply(shift_yvar,
+                                 width = 30,
+                                 align = "left",
+                                 fill = NA,
+                                 FUN = quantile,
+                                 probs = 0.95,
+                                 na.rm = TRUE),
+               lq_30 = rollapply(shift_yvar,
+                                 width = 30,
+                                 align = "left",
+                                 fill = NA,
+                                 FUN = quantile,
+                                 probs = 0.05,
+                                 na.rm = TRUE)) %>% 
+        head(10) %>% 
+        select(date, 
+               lq_30,
+               ma_30,
+               uq_30)
+    
+    data <- data %>% 
+        left_join(mean_var, by = "date")
+    
+    mean_mean_var <- mean(mean_var$ma_30)
     
     # Get the first date
     min_date <- data %>% 
@@ -50,7 +77,7 @@ line_plot <- function(data,
                labels_com = comma(get(yvar), accuracy = 0.01))
     
     if(is.null(format_style)) {
-        if(mean_var < 1) {
+        if(mean_mean_var < 1) {
             point_labels <- point_labels %>% 
                 pull(labels_perc)
         } else {
@@ -74,6 +101,12 @@ line_plot <- function(data,
     }
     
     plot <- ggplot(data[1:10, ], aes(x = date, y = get(yvar))) + 
+        # Add an 30 day moving 90% confidence interval
+        geom_ribbon(aes(ymin = lq_30, ymax = uq_30), 
+                    fill = "gray",
+                    alpha = 0.5) + 
+        # Add a 30 day moving mean yvar (30 days)
+        geom_line(aes(y = ma_30)) + 
         # Add a line for the yvar
         geom_line(color = MAIN_HEX) + 
         # Add a label for the yvar
@@ -81,27 +114,12 @@ line_plot <- function(data,
                       y = get(yvar) + range_data$label_bump[1]),
                   size = LIT_LABEL_SIZE,
                   check_overlap = TRUE) + 
-        # Add a horizontal line for the mean yvar (30 days)
-        geom_hline(yintercept = mean_var) + 
-        # Add a label for the 30 day average 
-        geom_text(label = paste0("30 day avg. ", title, ": ", 
-                                 ifelse(is.null(format_style), 
-                                        ifelse(mean_var < 1, 
-                                               percent(mean_var, accuracy = 0.01),
-                                               comma(mean_var)),
-                                        ifelse(format_style == "percent",
-                                               percent(mean_var, accuracy = 0.01),
-                                               comma(mean_var)))), 
-                  y = mean_var + range_data$label_bump[1],
-                  x = min_date - days(1),
-                  hjust = 0,
-                  size = LIT_LABEL_SIZE) +
         # Add the day of the week to the bottom
         geom_text(aes(label = dotw, y = range_data$label_pos[1]),
                   size = LIT_LABEL_SIZE) +
         # Make sure the plot is scaled properly (y-axis)
         scale_y_continuous(limits = c(range_data$ll[1], range_data$ul[1]),
-                           labels = ifelse(mean_var < 1,
+                           labels = ifelse(mean_mean_var < 1,
                                            percent_format(),
                                            comma_format())) + 
         # Add a day to the front and back of the plot (x-axis)
@@ -168,26 +186,30 @@ plot_todays_strain <- function(plot_data) {
 }
 
 
-strain_bar <- function(dat, var, avg_var, title) {
-    max_data <- dat %>% 
-        pull(get(var)) %>% 
-        max()
+strain_bar <- function(dat, var, avg_var, lq, uq, title) {
+    max_data <- max(c(dat %>% pull(get(uq)) %>% max(),
+                      dat %>% pull(get(var)) %>% max(),
+                      dat %>% pull(get(avg_var)) %>% max()))
     label_bump <- max_data * 0.025
     
     plot <- ggplot(dat, aes(x = date)) +
+        # Add a errorbar for the 90% CI for this day
+        geom_errorbar(aes(ymin = get(lq), ymax = get(uq)), 
+                      color = "gray", 
+                      alpha = 0.5) + 
+        # Add a label for the average
+        geom_text(aes(label = comma(get(avg_var), accuracy = 0.01), 
+                      y = get(avg_var) + label_bump),
+                  size = LIT_LABEL_SIZE) + 
         # Add a bar for the variable of concern
         geom_bar(aes(y = get(var)), 
                  stat = "identity",
                  fill = MAIN_HEX) + 
+        # Add a line for the average for this day
+        geom_errorbar(aes(ymin = get(avg_var), ymax = get(avg_var))) + 
         # Add a label for the variable's output
         geom_text(aes(label = comma(get(var), accuracy = 0.01), 
                       y = get(var) + label_bump),
-                  size = LIT_LABEL_SIZE) + 
-        # Add a line for the average for this day
-        geom_errorbar(aes(ymin = get(avg_var), ymax = get(avg_var))) + 
-        # Add a label for the average
-        geom_text(aes(label = comma(get(avg_var), accuracy = 0.01), 
-                      y = get(avg_var) + label_bump),
                   size = LIT_LABEL_SIZE) + 
         # Add the day of the week on the bottom
         geom_text(aes(label = dotw, y = label_bump),
