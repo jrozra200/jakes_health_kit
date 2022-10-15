@@ -4,6 +4,26 @@ KJ_TO_CAL <- 0.239
 M_TO_MILE <- 1609.344
 M_TO_FT <- 3.28084
 
+####################################
+## HOW MANY WORKOUTS ON A ROLLING ##
+## 7 DAY WINDOW DO I WANT TO DO?  ##
+####################################
+
+NUM_CARDIO <- 3 # 3 Days Cardio
+NUM_MUSCULAR <- 3 # 3 Days Lifting
+NUM_NON <- 3 # 3 Days Walking the Dog
+NUM_RESTORE <- 1 # 1 Day Break
+MAX_DAYS_OVER <- 2 # Can sustain 2 above average days in a row
+MAX_DAYS_UNDER <- 3 # Can allow 3 below average days in a row
+
+###############################
+## LOOK BACK 6 DAYS AND PLAN ##
+## TODAY AND THE NEXT 6      ##
+###############################
+
+range_start <- Sys.Date() - days(6)
+range_end <- Sys.Date() + days(6)
+
 # Today's Events
 
 get_events_data <- function() {
@@ -148,9 +168,11 @@ get_wo_windows <- function(events) {
         
         wo_windows <- free_time %>% 
             filter(length >= 60) %>% 
-            mutate(wo_windows = paste0(start, " - ", end)) %>% 
+            mutate(wo_windows = paste0(start, " to ", end)) %>% 
             pull(wo_windows) %>% 
-            paste0(collapse = "; ")
+            paste0(collapse = "\n- ")
+        
+        wo_windows <- paste0("\n\n- ", wo_windows)
     } else {
         wo_windows <- "all day"
     }
@@ -199,15 +221,15 @@ get_wo_message <- function(todays_wo, wo_window_num, wo_windows) {
                              soccer$field[1], ".")
         
         if (grepl("\\+ Walk", todays_wo)) {
-            wo_message <- paste0(wo_message, " You also have ", wo_window_num, 
+            wo_message <- paste0(wo_message, "\n\nYou have ", wo_window_num, 
                                  " window(s) long enough to get your walk in today.",
-                                 "\n\nTry to get your walk in during these windows:\n\t",
-                                 wo_windows, ".\n\n")
+                                 "\n\nTry to get your walk in during these windows:",
+                                 wo_windows, "\n\n")
         }
     } else {
         wo_message <- paste0("You have ", wo_window_num, " window(s) long enough ", 
                              "to get your workout in today.\n\nTry to get your time ", 
-                             "in during these windows:\n\t", wo_windows, ".\n\n")
+                             "in during these windows:", wo_windows, "\n\n")
         
         if (grepl("\\+ Walk", todays_wo)) {
             wo_message <- paste0(wo_message, "\n\nDon't forget... you also have to ", 
@@ -393,7 +415,9 @@ last_30_day_ma <- function(data,
                            end_date, 
                            days_back = 30) {
     mean_var <- data %>%
-        mutate(ma = rollmean(get(var), 
+        arrange(desc(get(date_var))) %>% 
+        mutate(lead_var = lead(get(var), 1),
+               ma = rollmean(lead_var, 
                              days_back, 
                              fill = NA, 
                              align = "left", 
@@ -869,25 +893,6 @@ get_current_rating <- function(workout_dates) {
 }
 
 get_todays_wo <- function() {
-    ####################################
-    ## HOW MANY WORKOUTS ON A ROLLING ##
-    ## 7 DAY WINDOW DO I WANT TO DO?  ##
-    ####################################
-    
-    NUM_CARDIO <- 3 # 3 Days Cardio
-    NUM_MUSCULAR <- 3 # 3 Days Lifting
-    NUM_NON <- 3 # 3 Days Walking the Dog
-    NUM_RESTORE <- 1 # 1 Day Break
-    MAX_DAYS_OVER <- 2 # Can sustain 2 above average days in a row
-    MAX_DAYS_UNDER <- 3 # Can allow 3 below average days in a row
-    
-    ###############################
-    ## LOOK BACK 6 DAYS AND PLAN ##
-    ## TODAY AND THE NEXT 6      ##
-    ###############################
-    
-    range_start <- Sys.Date() - days(6)
-    range_end <- Sys.Date() + days(6)
     
     # GET THE WORKOUTS DATA
     workout_dates <- get_workout_dates_data(range_start)
@@ -1155,7 +1160,7 @@ get_anomoly_data <- function(dat, var, date_var) {
                                           "(previous 10 weeks for that day of the week - i.e.: this ",
                                           "previous Monday was compared to the 10 week average only ",
                                           "for Mondays) for ", var, ".")),
-                            "")
+                            NA)
     
     alert_tdt <- ifelse(dat_anom$alert_tdt == TRUE,
                         ifelse(dat_anom$three_day_trend > 0,
@@ -1165,7 +1170,7 @@ get_anomoly_data <- function(dat, var, date_var) {
                                paste0("Each day over the past 3 days, you've DECREASED your amount", 
                                       " of ", var, " (three days ago was more than two days ago ",
                                       "which was more than yesterday).")),
-                        "")
+                        NA)
     
     alert_tdt_30 <- ifelse(dat_anom$alert_tdt_30 == TRUE,
                            ifelse(dat_anom$three_day_trend_30 > 0,
@@ -1173,16 +1178,116 @@ get_anomoly_data <- function(dat, var, date_var) {
                                          "average (average of previous 30 days) for ", var, "."),
                                   paste0("You have had 3 days in a row UNDER the 30 day moving ",
                                          "average (average of previous 30 days) for ", var, ".")),
-                           "")
+                           NA)
     
     alert_diff_10_week <- ifelse(dat_anom$alert_diff_10_week == TRUE,
                                  ifelse(dat_anom$percent_dif_10_week > 0,
                                         paste0("You have EXCEEDED the 95th percentile for ", var, "."),
                                         paste0("You were UNDER the 5th percentile for ", var, ".")),
-                                 "")
+                                 NA)
     
-    messages <- paste0(alert_tdt_avg, alert_tdt, alert_tdt_30, alert_diff_10_week,
-                       sep = "\n")
+    messages <- case_when(
+        !is.na(alert_tdt_avg) & 
+            !is.na(alert_tdt) &
+            !is.na(alert_tdt_30) &
+            !is.na(alert_diff_10_week) ~ paste0(alert_tdt_avg, 
+                                                  "\n\t- ",
+                                                  alert_tdt, 
+                                                  "\n\t- ",
+                                                  alert_tdt_30, 
+                                                  "\n\t- ",
+                                                  alert_diff_10_week),
+        is.na(alert_tdt_avg) & 
+            !is.na(alert_tdt) &
+            !is.na(alert_tdt_30) &
+            !is.na(alert_diff_10_week) ~ paste0(alert_tdt, 
+                                                  "\n\t- ",
+                                                  alert_tdt_30, 
+                                                  "\n\t- ",
+                                                  alert_diff_10_week),
+        !is.na(alert_tdt_avg) & 
+            is.na(alert_tdt) &
+            !is.na(alert_tdt_30) &
+            !is.na(alert_diff_10_week) ~ paste0(alert_tdt_avg, 
+                                                  "\n\t- ",
+                                                  alert_tdt_30, 
+                                                  "\n\t- ",
+                                                  alert_diff_10_week),
+        !is.na(alert_tdt_avg) & 
+            !is.na(alert_tdt) &
+            is.na(alert_tdt_30) &
+            !is.na(alert_diff_10_week) ~ paste0(alert_tdt_avg, 
+                                                  "\n\t- ",
+                                                  alert_tdt, 
+                                                  "\n\t- ",
+                                                  alert_diff_10_week),
+        !is.na(alert_tdt_avg) & 
+            !is.na(alert_tdt) &
+            !is.na(alert_tdt_30) &
+            is.na(alert_diff_10_week) ~ paste0(alert_tdt_avg, 
+                                                  "\n\t- ",
+                                                  alert_tdt, 
+                                                  "\n\t- ",
+                                                  alert_tdt_30),
+        is.na(alert_tdt_avg) & 
+            is.na(alert_tdt) &
+            !is.na(alert_tdt_30) &
+            !is.na(alert_diff_10_week) ~ paste0(alert_tdt_30, 
+                                                  "\n\t- ",
+                                                  alert_diff_10_week),
+        is.na(alert_tdt_avg) & 
+            !is.na(alert_tdt) &
+            is.na(alert_tdt_30) &
+            !is.na(alert_diff_10_week) ~ paste0(alert_tdt, 
+                                                  "\n\t- ",
+                                                  alert_diff_10_week),
+        is.na(alert_tdt_avg) & 
+            !is.na(alert_tdt) &
+            !is.na(alert_tdt_30) &
+            is.na(alert_diff_10_week) ~ paste0(alert_tdt, 
+                                                 "\n\t- ",
+                                                 alert_tdt_30),
+        !is.na(alert_tdt_avg) & 
+            is.na(alert_tdt) &
+            is.na(alert_tdt_30) &
+            !is.na(alert_diff_10_week) ~ paste0(alert_tdt_avg, 
+                                                  "\n\t- ",
+                                                  alert_diff_10_week),
+        !is.na(alert_tdt_avg) & 
+            is.na(alert_tdt) &
+            !is.na(alert_tdt_30) &
+            is.na(alert_diff_10_week) ~ paste0(alert_tdt_avg, 
+                                                 "\n\t- ",
+                                                 alert_tdt_30),
+        !is.na(alert_tdt_avg) & 
+            !is.na(alert_tdt) &
+            is.na(alert_tdt_30) &
+            is.na(alert_diff_10_week) ~ paste0(alert_tdt_avg, 
+                                                 "\n\t- ",
+                                                 alert_tdt),
+        !is.na(alert_tdt_avg) & 
+            is.na(alert_tdt) &
+            is.na(alert_tdt_30) &
+            is.na(alert_diff_10_week) ~ paste0(alert_tdt_avg),
+        is.na(alert_tdt_avg) & 
+            !is.na(alert_tdt) &
+            is.na(alert_tdt_30) &
+            is.na(alert_diff_10_week) ~ paste0(alert_tdt),
+        is.na(alert_tdt_avg) & 
+            is.na(alert_tdt) &
+            !is.na(alert_tdt_30) &
+            is.na(alert_diff_10_week) ~ paste0(alert_tdt_30),
+        is.na(alert_tdt_avg) & 
+            is.na(alert_tdt) &
+            is.na(alert_tdt_30) &
+            !is.na(alert_diff_10_week) ~ paste0(alert_diff_10_week),
+        is.na(alert_tdt_avg) & 
+            is.na(alert_tdt) &
+            is.na(alert_tdt_30) &
+            is.na(alert_diff_10_week) ~ ""
+    )
+        
+        
     
     dat_anom$message <- messages
     
