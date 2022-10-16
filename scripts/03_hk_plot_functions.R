@@ -15,16 +15,6 @@ line_plot <- function(data,
                       title, 
                       format_style = NULL,
                       super_little_label_size = NULL) {
-    # Calculate the ranges for the plot
-    range_data <- data %>% 
-        head(31) %>%
-        summarise(minimum = min(get(yvar)),
-                  maximum = max(get(yvar)),
-                  average = mean(get(yvar))) %>% 
-        mutate(ll = minimum - ((maximum - minimum) / 6),
-               ul = maximum + ((maximum - minimum) / 6),
-               label_pos = minimum - ((maximum - minimum) / 12),
-               label_bump = (maximum - minimum) * 0.05)
     
     # Get the 30 day ma
     mean_var <- data %>% 
@@ -58,6 +48,16 @@ line_plot <- function(data,
         left_join(mean_var, by = "date")
     
     mean_mean_var <- mean(mean_var$ma_30)
+    
+    # Calculate the ranges for the plot
+    range_data <- tibble(minimum = min(c(data %>% head(10) %>% pull(get(yvar)),
+                                         as.numeric(data$lq_30[1:10]))),
+                         maximum = max(c(data %>% head(10) %>% pull(get(yvar)),
+                                          data$uq_30[1:10]))) %>% 
+        mutate(ll = minimum - ((maximum - minimum) / 6),
+               ul = maximum + ((maximum - minimum) / 6),
+               label_pos = minimum - ((maximum - minimum) / 12),
+               label_bump = (maximum - minimum) * 0.05)
     
     # Get the first date
     min_date <- data %>% 
