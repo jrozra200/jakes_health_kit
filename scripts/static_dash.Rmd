@@ -90,6 +90,8 @@ present_table(todays_status)
 ## Strain ##
 # 1. Day Strain (cycles: day_strain)
 # 2. Calories (cycles: day_cal)
+# 2b. Avg Heart Rate (cycles: day_avg_heart_rate)
+# 2c. Max Heart Rate (cycles: day_max_heart_rate)
 ## Recovery ##
 # 3. Heart Rate Variability (recovery: hrv_rmssd)
 # 4. Resting Heart Rate (recovery: resting_heart_rate)
