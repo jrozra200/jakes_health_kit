@@ -183,6 +183,15 @@ cal <- strain_bar(cycles_plot,
 grid.arrange(strain, cal, ncol = 1)
 ```
 
+### Day Heart Rate
+
+```{r, out.width = "100%", fig.retina = 6}
+ahr <- line_plot(cycles, "day_avg_heart_rate", "date", "Average Heart Rate")
+mhr <- line_plot(cycles, "day_max_heart_rate", "date", "Max Heart Rate")
+
+grid.arrange(ahr, mhr, ncol = 1)
+```
+
 ### Recovery
 
 ```{r, fig.retina = 6}
