@@ -1297,11 +1297,13 @@ get_anomoly_data <- function(dat, var, date_var) {
 get_tracked_measures <- function() {
     return(
         tibble(
-            dat = c(rep("cycles", 2),
+            dat = c(rep("cycles", 4),
                     rep("recovery", 4),
                     rep("sleep", 9)),
             var = c("day_strain",
                     "day_cal",
+                    "day_avg_heart_rate",
+                    "day_max_heart_rate",
                     "hrv_rmssd",
                     "resting_heart_rate",
                     "skin_temp_f",
@@ -1315,9 +1317,7 @@ get_tracked_measures <- function() {
                     "cycles_count",
                     "disturbances",
                     "respiratory_rate"),
-            date_var = c(rep("date", 2),
-                         rep("date", 4),
-                         rep("date", 9))
+            date_var = "date"
         )
     )
 }
