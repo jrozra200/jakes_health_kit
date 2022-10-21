@@ -665,7 +665,12 @@ get_todays_strain_plot_data <- function(cycles_plot, expected_strain) {
                day_strain, 
                avg_strain, 
                dotw)%>% 
-        mutate(additional_strain = expected_strain + day_strain)
+        mutate(potd = ((hour(Sys.time()) * 60 * 60) + 
+                           (minute(Sys.time()) * 60) + 
+                           second(Sys.time())) / 
+                   (24 * 60 * 60),
+               non_wo_strain = (avg_strain - expected_strain) * (1 - potd),
+               additional_strain = expected_strain + day_strain + non_wo_strain)
     
     return(plot_data)
 }
