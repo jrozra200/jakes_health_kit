@@ -62,12 +62,23 @@ get_events_data <- function() {
             
             #######################################################
             
-            start.dateTime = strptime(paste0(Sys.Date(), ":16:00:00"), 
-                                      format = "%Y-%m-%d:%H:%M:%S", 
-                                      tz = "UTC")
-            end.dateTime = strptime(paste0(Sys.Date(), ":19:30:00"), 
-                                    format = "%Y-%m-%d:%H:%M:%S",
-                                    tz = "UTC")
+            if(hour(max(events$end)) > 16) {
+                start.dateTime = max(events$end)
+            } else {
+                start.dateTime = strptime(paste0(Sys.Date(), ":16:00:00"), 
+                                          format = "%Y-%m-%d:%H:%M:%S", 
+                                          tz = "UTC")
+            }
+            
+            if(hour(max(events$start)) > 16 & hour(max(events$start)) < 19) {
+                end.dateTime = max(events$start)
+            } else {
+                end.dateTime = strptime(paste0(Sys.Date(), ":19:30:00"), 
+                                        format = "%Y-%m-%d:%H:%M:%S",
+                                        tz = "UTC")
+            }
+            
+            
             day_end <- tibble(
                 event = "With the Family",
                 start = start.dateTime,
@@ -95,6 +106,13 @@ get_events_data <- function() {
             
             end_time <- events$start[event]
             start_time <- events$end[last_event]
+            
+            # This is wrong
+            # while(start_time > end_time) {
+            #     last_event <- last_event - 1
+            #     
+            #     start_time <- events$end[last_event]
+            # }
             
             time_diff <- difftime(end_time, 
                                   start_time, 
