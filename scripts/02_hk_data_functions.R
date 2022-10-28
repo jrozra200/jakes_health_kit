@@ -246,10 +246,10 @@ get_cycles_data <- function() {
         mutate(day_cal = 0.239 * day_kilojoules)
     
     day_start <- unlist(
-        str_split(cycles$during, ",")
-    )[grepl("\\[", unlist(str_split(cycles$during, ",")))]
+        str_split(cycles$days, ",")
+    )[grepl("\\[", unlist(str_split(cycles$days, ",")))]
     day_start <- str_remove_all(day_start, "\\[|\\'")
-    day_start <- as_date(day_start, format = "%Y-%m-%dT%H:%M:%OSZ")
+    day_start <- as_date(day_start, format = "%Y-%m-%d")
     
     cycles <- cycles %>% 
         mutate(date = day_start,

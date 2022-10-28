@@ -1,0 +1,55 @@
+---
+title: "TDaily Digest - `r format(Sys.time(), '%B %d, %Y %I:%M:%S %p')`"
+output: 
+  flexdashboard::flex_dashboard:
+    theme:
+      bootswatch: cosmo
+    orientation: rows
+    vertical_layout: fill
+---
+
+```{r setup, include = FALSE}
+# Source Libraries Script
+source("01_hkv2_libraries.R")
+
+# Refresh Data
+system("/bin/bash 02_hkv2_data_refresh.sh")
+
+source("03_01_hkv2_event_data_functions.R")
+
+# GET EVENTS DATA
+events <- get_events_data()
+wo_window_num <- get_wo_windows_num(events)
+wo_windows <- get_wo_windows(events)
+```
+
+Column {data-width=650 .tabset}
+-----------------------------------------------------------------------
+
+### Chart A
+
+```{r}
+
+```
+
+### Chart B
+
+```{r}
+
+```
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### Chart C
+
+```{r}
+
+```
+
+### Chart D
+
+```{r}
+
+```
+

@@ -149,10 +149,6 @@ stand_runs <- runs %>%
            mph_norm,
            treadmill)
 
-ggplot(stand_runs, aes(x = date, y = score)) +
-    geom_point() + 
-    geom_smooth()
-
 wrun <- workouts %>% 
     filter(name == "Running") %>% 
     select(date, 
@@ -170,15 +166,47 @@ wrun <- workouts %>%
 stand_runs <- stand_runs %>%
     inner_join(wrun, by = "date")
 
-
 stand_runs <- stand_runs %>% 
-    mutate(run_by_strain = score / raw_intensity_score,
-           run_by_cal = score / calories,
-           run_by_hr = score / average_heart_rate)
+    mutate(score = score * 10, 
+           score_differential =  score / mean(score),
+           run_by_strain = raw_intensity_score / score_differential,
+           run_by_cal = calories / score_differential,
+           run_by_hr =  average_heart_rate / score_differential)
 
-ggplot(stand_runs, aes(x = date, y = run_by_hr)) + 
-    geom_point() +
+mean_run <- ggplot(stand_runs, aes(x = date, y = score_differential)) + 
+    geom_hline(yintercept = 1, color = "red") + 
+    geom_point() + 
     geom_smooth()
+
+rbs <- ggplot(stand_runs, aes(x = date, y = run_by_strain)) + 
+    geom_point() + 
+    geom_smooth()
+
+str <- ggplot(stand_runs, aes(x = date, y = raw_intensity_score)) + 
+    geom_point() + 
+    geom_smooth()
+
+rbc <- ggplot(stand_runs, aes(x = date, y = run_by_cal)) + 
+    geom_point() + 
+    geom_smooth()
+
+cal <- ggplot(stand_runs, aes(x = date, y = calories)) + 
+    geom_point() + 
+    geom_smooth()
+
+rbhr <- ggplot(stand_runs, aes(x = date, y = run_by_hr)) + 
+    geom_point() + 
+    geom_smooth()
+
+hr <- ggplot(stand_runs, aes(x = date, y = average_heart_rate)) + 
+    geom_point() + 
+    geom_smooth()
+
+
+grid.arrange(rbs, rbc, rbhr,
+             str, cal, hr,
+             mean_run, mean_run, mean_run,
+             nrow = 3)
 
 plot_data <- stand_runs %>% 
     select(date, 
@@ -192,7 +220,11 @@ ggplot(plot_data, aes(x = date, y = rate, color = metric)) +
     geom_smooth() + 
     facet_wrap(~ metric, scales = "free")
 
-
 ```
 
+mean_run * differential ~ avg_heart_rate
+mean_run ~ avg_heart_rate / differential
+
+score = mean_run * differential
+differential = score / mean_run
 
