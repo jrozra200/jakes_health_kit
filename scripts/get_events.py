@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from dateutil import tz
 import pandas as pd
 from googleapiclient.discovery import build
@@ -23,9 +23,10 @@ calendars = pd.json_normalize(cal_list.get('items', []))['id']
 # Get today's events
 today = datetime.utcnow().date()
 start = datetime(today.year, today.month, today.day, 
-                 tzinfo = tz.gettz('America/New_York')).isoformat()
-end = datetime(today.year, today.month, today.day + 1, 
-               tzinfo = tz.gettz('America/New_York')).isoformat()
+                 tzinfo = tz.gettz('America/New_York'))
+end = start + timedelta(days = 1)
+start = start.isoformat()
+end = end.isoformat()
 
 all_events = pd.DataFrame()
 
