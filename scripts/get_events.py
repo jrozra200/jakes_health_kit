@@ -19,6 +19,7 @@ service = build('calendar', 'v3', credentials = delegated_credentials)
 # Get the list of calendars available
 cal_list = service.calendarList().list().execute()
 calendars = pd.json_normalize(cal_list.get('items', []))['id']
+calendars = calendars[calendars != "en.usa#holiday@group.v.calendar.google.com"]
 
 # Get today's events
 today = datetime.utcnow().date()
