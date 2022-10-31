@@ -41,18 +41,7 @@ for cal in calendars:
     events = pd.json_normalize(events_result.get('items', []))
     
     if(len(events) > 0):
-        attendees = events.attendees
-    
-        resStat = []
-        
-        for event in range(len(attendees)):
-            for att in range(len(attendees[event])):
-                if attendees[event][att]['email'] == cal:
-                    resStat.append(attendees[event][att]['responseStatus'])
-                    break
-        
-        events = events[['summary', 'start.dateTime', 'end.dateTime']]
-        events['response'] = resStat
+        events = events[['summary', 'start.dateTime', 'end.dateTime', 'status']]
         events['calendar'] = cal
         all_events = pd.concat([all_events, events], ignore_index = True)
 
