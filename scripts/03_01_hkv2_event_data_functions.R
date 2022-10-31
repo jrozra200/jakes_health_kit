@@ -12,10 +12,11 @@ get_events_data <- function() {
     
     if (dim(events)[1] > 0) {
         events <- events %>% 
-            filter(response != "declined") %>% 
+            filter(status != "declined") %>% 
             mutate(length = difftime(end.dateTime, start.dateTime, units = "mins"),
                    start.dateTime = start.dateTime - hours(4),
-                   end.dateTime = end.dateTime - hours(4)) %>% 
+                   end.dateTime = end.dateTime - hours(4),
+                   covered = FALSE) %>% 
             rename(start = start.dateTime,
                    end = end.dateTime,
                    event = summary) %>% 
@@ -23,6 +24,7 @@ get_events_data <- function() {
                    start,
                    end,
                    length,
+                   covered,
                    calendar)
         
         if (!weekdays(Sys.Date()) %in% c("Saturday", "Sunday")) {
@@ -37,6 +39,7 @@ get_events_data <- function() {
                 start = start.dateTime,
                 end = end.dateTime,
                 length = difftime(end.dateTime, start.dateTime, units = "mins"),
+                covered = FALSE,
                 calendar = "rozran00@gmail.com"
             )
             
@@ -55,6 +58,7 @@ get_events_data <- function() {
                 start = start.dateTime,
                 end = end.dateTime,
                 length = difftime(end.dateTime, start.dateTime, units = "mins"),
+                covered = FALSE,
                 calendar = "rozran00@gmail.com"
             )
             
@@ -62,7 +66,7 @@ get_events_data <- function() {
             
             #######################################################
             
-            if(hour(max(events$end)) > 16) {
+            if(hour(max(events$end)) >= 16) {
                 start.dateTime = max(events$end)
             } else {
                 start.dateTime = strptime(paste0(Sys.Date(), ":16:00:00"), 
@@ -84,6 +88,7 @@ get_events_data <- function() {
                 start = start.dateTime,
                 end = end.dateTime,
                 length = difftime(end.dateTime, start.dateTime, units = "mins"),
+                covered = FALSE,
                 calendar = "rozran00@gmail.com"
             )
             
@@ -102,17 +107,11 @@ get_events_data <- function() {
         event <- 2
         
         while (event <= max_events) {
+            
             last_event <- event - 1
             
             end_time <- events$start[event]
             start_time <- events$end[last_event]
-            
-            # This is wrong
-            # while(start_time > end_time) {
-            #     last_event <- last_event - 1
-            #     
-            #     start_time <- events$end[last_event]
-            # }
             
             time_diff <- difftime(end_time, 
                                   start_time, 
@@ -126,6 +125,7 @@ get_events_data <- function() {
                     start = start_time,
                     end = end_time,
                     length = time_diff,
+                    covered = FALSE,
                     calendar = "rozran00@gmail.com"
                 )
                 
@@ -140,7 +140,28 @@ get_events_data <- function() {
         }
         
         events <- events %>% 
-            filter(!is.na(event)) %>% 
+            filter(!is.na(event))
+        
+        for (eve in 1:length(events$event)) {
+            this_start <- events$start[eve]
+            this_end <- events$end[eve]
+            
+            for (next_eve in 1:length(events$event)) {
+                if (eve == next_eve) {
+                    next
+                }
+                
+                next_start <- events$start[next_eve]
+                next_end <- events$end[next_eve]
+                
+                if (this_start <= next_start & this_end >= next_end) {
+                    events$covered[next_eve] <- TRUE
+                }
+            }
+        }
+        
+        events <- events %>% 
+            filter(!(event == "Free Time" & covered == TRUE)) %>% 
             mutate(start = format(start, "%I:%M:%S %p"),
                    end = format(end, "%I:%M:%S %p"))
     } 
