@@ -138,6 +138,10 @@ get_todays_wo <- function() {
     
     current_rating <- get_current_rating(workout_dates)
     
+    yesterday <- workout_dates %>% 
+        filter(date == Sys.Date() - days(1)) %>% 
+        pull(category)
+    
     # EACH DAY SHOULD EITHER BE CARDIO OR LIFTING OR RECOVERY
     # 0. Even if I am overdue for something else... If I have had heavy strain, 
     #    prioritize recovery
@@ -152,6 +156,11 @@ get_todays_wo <- function() {
     if (current_rating > MAX_DAYS_OVER) {
         
         today_type <- "restorative"
+        
+        # If I'm getting soft, then work hard next
+    } else if (current_rating < MAX_DAYS_UNDER) {
+        
+        today_type <- "cardiovascular"
         
         # If restorative is behind, then restore
     } else if (category_sum$behind[category_sum$category == "restorative"]) {
@@ -209,9 +218,17 @@ get_todays_wo <- function() {
     
     today_name <- case_when(
         today_type == "restorative" ~ sample(c("Yoga", "Walking"), 1),
-        today_type == "muscular" ~ "Weightlifting",
-        today_type == "cardiovascular" & current_rating < MAX_DAYS_UNDER ~ "Running",
-        today_type == "cardiovascular" & current_rating >= MAX_DAYS_UNDER ~ "Spin"
+        today_type == "muscular" & !grepl("muscu", yesterday) ~ "Weightlifting",
+        today_type == "muscular" & grepl("muscu", yesterday) & 
+            current_rating < MAX_DAYS_OVER ~ "Running",
+        today_type == "muscular" & grepl("muscu", yesterday) & 
+            current_rating >= MAX_DAYS_OVER ~ "Spin",
+        today_type == "cardiovascular" & current_rating < MAX_DAYS_OVER & 
+            !grepl("cardi", yesterday) ~ "Running",
+        today_type == "cardiovascular" & current_rating < MAX_DAYS_OVER & 
+            grepl("cardi", yesterday) ~ "Weightlifting",
+        today_type == "cardiovascular" & current_rating >= MAX_DAYS_OVER & 
+            grepl("cardi", yesterday) ~ "Weightlifting"
     )
     
     

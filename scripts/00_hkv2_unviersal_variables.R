@@ -19,7 +19,7 @@ NUM_MUSCULAR <- 3 # 3 Days Lifting
 NUM_NON <- 3 # 3 Days Walking the Dog
 NUM_RESTORE <- 1 # 1 Day Break
 MAX_DAYS_OVER <- 2 # Can sustain 2 above average days in a row
-MAX_DAYS_UNDER <- 3 # Can allow 3 below average days in a row
+MAX_DAYS_UNDER <- -2 # Can allow 2 below average days in a row
 
 ###############################
 ## LOOK BACK 6 DAYS AND PLAN ##
