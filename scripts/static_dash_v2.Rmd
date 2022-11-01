@@ -79,3 +79,39 @@ todays_status %>%
            `Days Since Last` = days_since_last) %>% 
     present_table()
 ```
+
+### Today's Messages
+
+```{r, results = "asis"}
+tracked_measures <- get_tracked_measures()
+
+anom_dat <- tracked_measures %>% 
+        pmap_dfr(get_anomoly_data) %>% 
+    filter(((date == Sys.Date() & 
+               (df == "recovery" | 
+                    df == "sleep")) | 
+                (date == Sys.Date() - days(1) & 
+                     df == "cycles")) & 
+               (alert_tdt_avg == TRUE | 
+                    alert_tdt == TRUE | 
+                    alert_tdt_30 == TRUE | 
+                    alert_diff_10_week == TRUE )) %>% 
+    select(date, 
+           variable, 
+           message)
+
+if (dim(anom_dat)[1] == 0) {
+    anom_mess <- "There are no alerts for today."
+} else {
+    anom_mess <- paste0("There are ", dim(anom_dat)[1], " alerts for today.")
+    
+    for (var in unique(anom_dat$variable)) {
+        anom_mess <- paste0(anom_mess, "\n\n- ", var)
+        
+        anom_mess <- paste0(anom_mess, "\n\t- ", anom_dat$message[anom_dat$variable == var])
+        
+    }
+}
+
+cat(anom_mess)
+```
