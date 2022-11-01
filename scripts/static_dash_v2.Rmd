@@ -12,44 +12,70 @@ output:
 # Source Libraries Script
 source("01_hkv2_libraries.R")
 
+# Source universal variables
+source("00_hkv2_unviersal_variables.R")
+
 # Refresh Data
 system("/bin/bash 02_hkv2_data_refresh.sh")
 
+#####################
+## GET EVENTS DATA ##
+#####################
+
+# Source event data functions
 source("03_01_hkv2_event_data_functions.R")
 
-# GET EVENTS DATA
+# Get all events from my calendars
 events <- get_events_data()
+# How many workout windows do I have today?
 wo_window_num <- get_wo_windows_num(events)
+# What are the workout windows?
 wo_windows <- get_wo_windows(events)
+
+######################
+## GET WORKOUT DATA ##
+######################
+
+source("03_02_hkv2_workout_data_functions.R")
+source("03_03_hkv2_cycles_data_functions.R")
+source("03_04_hkv2_general_data_functions.R")
+source("04_01_hkv2_table_functions.R")
+
+todays_wo <- get_todays_wo()
+todays_status <- get_category_sum_data(get_workout_dates_data(range_start),
+                                       NUM_CARDIO,
+                                       NUM_MUSCULAR,
+                                       NUM_NON,
+                                       NUM_RESTORE)
+wo_message <- get_wo_message(todays_wo, wo_window_num, wo_windows)
+
+# workouts <- get_workouts_data()
+# avg_workout <- get_avg_workouts_data(workouts, TRUE)
+# avg_workout_long <- get_avg_workouts_data(workouts)
+# todays_workouts <- get_todays_workout_data(workouts)
 ```
 
-Column {data-width=650 .tabset}
+Today
+=====================================
+
+Row
 -----------------------------------------------------------------------
 
-### Chart A
+### Today's Workout: `r todays_wo`.
+
+Today's Workout: `r todays_wo`.
+
+`r wo_message`
+
+### Today's Status
 
 ```{r}
-
+todays_status %>% 
+    arrange(desc(behind), num_efforts) %>% 
+    rename(Category = category,
+           Efforts = num_efforts,
+           `Behind?` = behind,
+           `Last Workout Date` = last_date,
+           `Days Since Last` = days_since_last) %>% 
+    present_table()
 ```
-
-### Chart B
-
-```{r}
-
-```
-
-Column {data-width=350}
------------------------------------------------------------------------
-
-### Chart C
-
-```{r}
-
-```
-
-### Chart D
-
-```{r}
-
-```
-

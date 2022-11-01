@@ -1,10 +1,7 @@
-####################
-## Data Functions ##
-####################
-
-#######################
-# Part 1 - Get Events #
-#######################
+#####################
+## Google Calendar ##
+## Data Functions  ##
+#####################
 
 # Get Today's Events
 get_events_data <- function() {
