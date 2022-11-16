@@ -20,12 +20,46 @@ workouts <- get_workouts_data() %>%
     mutate(wo_len = wo_end - wo_start,
            kj_per_min = kilojoules / as.numeric(wo_len))
 
-workouts %>% 
+runs_who <- workouts %>% 
     filter(name == "Running")
 
 ggplot(workouts, aes(x = date, y = kj_per_min)) + 
     geom_point() +
     facet_wrap(~ name)
+
+############################################
+
+mth <- tibble(miles = 1:26) %>% 
+    mutate(hardness = log(miles))
+
+ggplot(mth, aes(x = miles, y = hardness)) + 
+    geom_point() + 
+    geom_line() + 
+    scale_x_continuous(breaks = 1:26) + 
+    theme(panel.background = element_blank(),
+          panel.grid.major = element_line(color = "light gray"))
+
+# hardness = speed * (log(distance) + altitude)
+
+sth <- tibble(speed = seq(4, 12, by = 0.1)) %>% 
+    mutate(hardness = exp(speed),
+           hardness = (hardness - min(hardness)) / (max(hardness) - min(hardness)))
+
+summary(sth)
+
+ggplot(sth %>% filter(speed > 4 & speed < 8), aes(x = speed, y = hardness)) + 
+    geom_point() + 
+    geom_line() + 
+    scale_x_continuous(breaks = 1:26) + 
+    theme(panel.background = element_blank(),
+          panel.grid.major = element_line(color = "light gray"))
+
+# hardness = exp(speed) * (log(distance) + altitude)
+
+summary(runs)
+
+runs <- runs %>% 
+    mutate(perc_gain = altitude_gain / (distance * 5280))
 ```
 
 ```{r strava}
@@ -88,10 +122,40 @@ runs <- act_df %>%
               elevation_miles = sum(elevation_miles),
               treadmill = sum(trainer) / length(date)) %>% 
     mutate(avg_speed_mph = distance_miles / moving_time_min * 60,
-           avg_elev_mph = elevation_miles / moving_time_min * 60) %>% 
-    filter(date != as_date("2018-10-24"))
+           avg_elev_mph = elevation_miles / moving_time_min * 60,
+           treadmill = ifelse(treadmill > 0, 1, 0),
+           incline = elevation_miles / distance_miles,
+           score = exp(avg_speed_mph) * log(distance_miles)) %>% 
+    filter(date != as_date("2018-10-24")) %>% 
+    arrange(desc(date))
 
+head(runs)
+runs_who %>% 
+    select(date,
+           raw_intensity_score,
+           kilojoules,
+           calories) %>% 
+    left_join(runs) %>% 
+    filter(date != as_date("2022-01-15")) %>% 
+    mutate(strain__score = raw_intensity_score / score,
+           strain__score = (strain__score - min(strain__score)) / 
+               (max(strain__score) - min(strain__score))) %>% 
+    select(date,
+           raw_intensity_score,
+           kilojoules,
+           calories,
+           strain__score,
+           score, 
+           avg_speed_mph,
+           distance_miles,
+           elevation_miles) %>% 
+    filter(date >= as_date("2022-01-01")) %>%
+    ggplot(aes(x = date, y = strain__score)) + 
+        geom_line(stat = "identity") + 
+        geom_smooth()
 
+ggplot(runs %>% filter(date > as_date("2022-07-01")), aes(x = date, y = score)) + 
+    geom_bar(stat = "identity")
 ```
 
 I have distance, speed, elevation, moving time, elapsed time, treadmill, 

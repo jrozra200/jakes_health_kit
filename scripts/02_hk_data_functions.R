@@ -461,8 +461,8 @@ get_workouts_data <- function() {
                   max_heart_rate = max(max_heart_rate, na.rm = TRUE), 
                   average_heart_rate = mean(average_heart_rate, na.rm = TRUE),
                   distance = sum(distance, na.rm = TRUE) / M_TO_MILE, 
-                  altitude_gain = sum(altitude_gain, na.rm = TRUE) / M_TO_FT,
-                  altitude_change = sum(altitude_change, na.rm = TRUE) / M_TO_FT,
+                  altitude_gain = sum(altitude_gain, na.rm = TRUE) * M_TO_FT,
+                  altitude_change = sum(altitude_change, na.rm = TRUE) * M_TO_FT,
                   zone_durations = paste0(zone_durations, collapse = "|"),
                   wo_start = min(wo_start, na.rm = TRUE),
                   wo_end = max(wo_end, na.rm = TRUE)) %>% 
